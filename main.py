@@ -1,47 +1,30 @@
-import nibabel as nib
 import numpy as np
-import plotly.graph_objects as go
 import os
+import utils.visualiser as vis
+import json
+import constants as c
 
-def load_nifti(file_path):
-    nii_img = nib.load(file_path)
-    return nii_img.get_fdata()
+np.set_printoptions(suppress=True, precision=6)  # Suppress scientific notation, set decimal places
+image_name = 'n2'
 
-def downsample_volume(volume, scale=0.25):
-    from scipy.ndimage import zoom
-    return zoom(volume, scale, order=1)  # Linear interpolation
+nifti_data, voxels = vis.load_data(image_name=image_name)
 
-def create_3d_visualization(nifti_data, max_points=50000):
-    volume = (nifti_data - np.min(nifti_data)) / (np.max(nifti_data) - np.min(nifti_data))
-    volume = (volume * 255).astype(np.uint8)
-    
-    x, y, z = np.where(volume > np.percentile(volume, 99))  # Select top intensity points
-    values = volume[x, y, z]
-    
-    if len(x) > max_points:
-        indices = np.random.choice(len(x), size=max_points, replace=False)
-        x, y, z, values = x[indices], y[indices], z[indices], values[indices]
-    
-    fig = go.Figure(data=go.Scatter3d(
-        x=x, y=y, z=z,
-        mode='markers',
-        marker=dict(
-            size=1,  # Reduce size for performance
-            color=values,
-            colorscale='gray',
-            opacity=0.3
-        )
-    ))
-    
-    fig.update_layout(title='Interactive 3D NIfTI Visualization',
-                      scene=dict(
-                          xaxis_title='X Axis',
-                          yaxis_title='Y Axis',
-                          zaxis_title='Z Axis'))
-    
-    fig.show()
+print(voxels)
+ 
+P1 = np.array(voxels['R'])
+P2 = np.array(voxels['L'])
+P3 = np.array(voxels['N'])
 
-dataset_folder = '/mnt/c/Users/Andre/Desktop/Dataset/Data/'
-file_path = os.path.join(dataset_folder, 'images', 'n1.nii.gz') 
-nifti_data = load_nifti(file_path)
-create_3d_visualization(nifti_data)
+
+v1 = P2 - P1
+v2 = P3 - P1
+normal = np.linalg.norm(np.cross(v1, v2)) / (np.cross(v1, v2))
+
+A,B,C = normal
+
+D = -np.dot(normal, voxels['R'])
+
+print("A: {}, B: {}, C: {}, D: {}".format(A,B,C,D))
+
+app = vis.create_slice_viewer(nifti_data,voxels)
+app.run_server(debug=True)
