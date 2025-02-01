@@ -1,38 +1,28 @@
-import nibabel as nib
 import numpy as np
 import plotly.graph_objects as go
-import plotly.subplots as sp
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output
-import constants as c
-import os
-import json
+import scipy
 
-def load_data(image_name):
-    nifti_path = os.path.join(c.IMAGE_FOLDER, image_name + '.nii.gz')
-    nifti_data, affine = load_nifti(nifti_path)
-    with open(os.path.join(c.LABELS_FOLDER, image_name + '.json')) as file:
-        landmark_data = json.load(file)
-    landmark_data = {k: landmark_data[k] for k in ['R', 'L', 'N'] if k in landmark_data}
-    voxels = world_to_voxel(landmark_data, affine=affine)
-    return nifti_data, voxels
+def ras_to_lps(ras_coords):
+    return np.array([-ras_coords[0], -ras_coords[1], ras_coords[2]])
 
-def world_to_voxel(landmarks, affine):
+def world_to_voxel(landmarks, affine, orientation=('L', 'P', 'S')):
     inv_affine = np.linalg.inv(affine)
     voxel_landmarks = {}
 
     for label, coords in landmarks.items():
-        flipped_coords = [coords[0], -coords[1], coords[2]]  # Flip Y coordinate
-        voxel_coords = np.dot(inv_affine, np.append(flipped_coords, 1))[:3]
+
+        # If orientation is LPS convert points from RAS to LPS
+        if orientation == ('L', 'P', 'S'):
+            new_coords = ras_to_lps(coords)
+        else:
+            new_coords = coords
+        voxel_coords = np.dot(inv_affine, np.append(new_coords, 1))[:3]
         voxel_landmarks[label] = voxel_coords.tolist()
 
     return voxel_landmarks
-
-def load_nifti(file_path):
-    nii_img = nib.load(file_path)
-    affine = nii_img.affine  # Get transformation matrix
-    return nii_img.get_fdata(), affine
 
 def create_slice_viewer(nifti_data, landmark_data):
     slices = nifti_data.shape[2]
@@ -112,10 +102,54 @@ def create_slice_viewer(nifti_data, landmark_data):
             yaxis_title='Y',
             xaxis=dict(scaleanchor="y"),  # This ensures that x and y axes have the same scale
             yaxis=dict(constrain='domain'),
-            height=1000,  # Optional, you can adjust this as needed
-            width=1000    # Optional, ensuring square aspect ratio
+            height=600,  # Optional, you can adjust this as needed
+            width=600    # Optional, ensuring square aspect ratio
         )
         
         return fig
     
     return app
+
+def get_rotation_matrix(source, target):
+    """Compute the rotation matrix that aligns source vector with target vector"""
+    source = source / np.linalg.norm(source)  # Ensure unit vector
+    target = target / np.linalg.norm(target)
+
+    # Compute rotation axis (cross product)
+    axis = np.cross(source, target)
+
+    if np.linalg.norm(axis) < 1e-6:
+        return np.eye(3)  # No rotation needed
+
+    axis = axis / np.linalg.norm(axis)  # Normalize axis
+    angle = np.arccos(np.clip(np.dot(source, target), -1.0, 1.0))  # Compute angle
+
+    # Rodrigues' rotation formula
+    K = np.array([
+        [0, -axis[2], axis[1]],
+        [axis[2], 0, -axis[0]],
+        [-axis[1], axis[0], 0]
+    ])
+    R = np.eye(3) + np.sin(angle) * K + (1 - np.cos(angle)) * (K @ K)
+
+    return R
+
+def rotate_image(image, R):
+    """Apply rotation to an image"""
+    # Convert 3x3 rotation to 4x4 affine transform for 3D images
+    affine_matrix = np.eye(4)
+    affine_matrix[:3, :3] = R
+
+    rotated_image = scipy.ndimage.affine_transform(image, R, order=3)
+    return rotated_image
+
+def rotate_landmarks(voxels_dict, R):
+    rotated_dict = {}
+
+    for key, value in voxels_dict.items():
+        if isinstance(value[0], (list, tuple, np.ndarray)):  # Check if it's a list of points (curve)
+            rotated_dict[key] = [np.dot(R, np.array(point)).tolist() for point in value]
+        else:  # Single point case
+            rotated_dict[key] = np.dot(R, np.array(value)).tolist()
+
+    return rotated_dict

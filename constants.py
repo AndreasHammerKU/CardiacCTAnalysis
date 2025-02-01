@@ -1,5 +1,7 @@
-DATASET_FOLDER = 'C:/Users/Andre/Desktop/Dataset/Data'
+import os
 
-IMAGE_FOLDER = DATASET_FOLDER + '/images'
+DATASET_FOLDER = os.path.join(os.path.expanduser("~"), "Desktop", "Dataset", "Data")
 
-LABELS_FOLDER = DATASET_FOLDER + '/landmarks'
+IMAGE_FOLDER = os.path.join(DATASET_FOLDER, 'images')
+
+LABELS_FOLDER = os.path.join(DATASET_FOLDER, 'landmarks')
