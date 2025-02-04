@@ -5,23 +5,24 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 import scipy
 
-def ras_to_lps(ras_coords):
-    return np.array([-ras_coords[0], -ras_coords[1], ras_coords[2]])
+def ras_to_lps(dict):
+    converted_dict = {}
+    for key, value in dict.items():
+        if isinstance(value[0], (list, tuple, np.ndarray)):  # Check if it's a list of points (curve)
+            converted_dict[key] = [np.array([-point[0], -point[1], point[2]]).tolist() for point in value]
+        else:  # Single point case
+            converted_dict[key] = np.array([-value[0], -value[1], value[2]]).tolist()
+    return converted_dict
 
 def world_to_voxel(landmarks, affine, orientation=('L', 'P', 'S')):
     inv_affine = np.linalg.inv(affine)
     voxel_landmarks = {}
 
-    for label, coords in landmarks.items():
-
-        # If orientation is LPS convert points from RAS to LPS
-        if orientation == ('L', 'P', 'S'):
-            new_coords = ras_to_lps(coords)
-        else:
-            new_coords = coords
-        voxel_coords = np.dot(inv_affine, np.append(new_coords, 1))[:3]
-        voxel_landmarks[label] = voxel_coords.tolist()
-
+    for label, value in landmarks.items():
+        if isinstance(value[0], (list, tuple, np.ndarray)):  # Check if it's a list of points (curve)
+            voxel_landmarks[label] = [np.dot(inv_affine, np.append(point, 1))[:3].tolist() for point in value]
+        else:  # Single point case
+            voxel_landmarks[label] = np.dot(inv_affine, np.append(value, 1))[:3].tolist()
     return voxel_landmarks
 
 def create_slice_viewer(nifti_data, landmark_data):
@@ -80,20 +81,38 @@ def create_slice_viewer(nifti_data, landmark_data):
         ))
 
         # Add landmark points if they are in the current slice
-        for label, (x, y, z) in landmark_data.items():
-            if (orientation == 'xy' and round(z) == slice_idx) or \
-               (orientation == 'yz' and round(x) == slice_idx) or \
-               (orientation == 'xz' and round(y) == slice_idx):
-                
-                lx, ly = (x, y) if orientation == 'xy' else (y, z) if orientation == 'yz' else (x, z)
-                
-                fig.add_trace(go.Scatter(
-                    x=[lx], y=[ly],
-                    mode='markers+text',
-                    marker=dict(color='red', size=8),
-                    text=label,
-                    textposition='top center'
-                ))
+        for label, value in landmark_data.items():
+            if isinstance(value[0], (list, tuple, np.ndarray)):
+                for point in value:
+                    (x, y, z) = point
+                    if (orientation == 'xy' and round(z) == slice_idx) or \
+                    (orientation == 'yz' and round(x) == slice_idx) or \
+                    (orientation == 'xz' and round(y) == slice_idx):
+
+                        lx, ly = (x, y) if orientation == 'xy' else (y, z) if orientation == 'yz' else (x, z)
+
+                        fig.add_trace(go.Scatter(
+                            x=[lx], y=[ly],
+                            mode='markers+text',
+                            marker=dict(color='blue', size=6),
+                            text=label,
+                            textposition='top center'
+                        ))
+            else:
+                (x, y, z) = value
+                if (orientation == 'xy' and round(z) == slice_idx) or \
+                (orientation == 'yz' and round(x) == slice_idx) or \
+                (orientation == 'xz' and round(y) == slice_idx):
+                    
+                    lx, ly = (x, y) if orientation == 'xy' else (y, z) if orientation == 'yz' else (x, z)
+                    
+                    fig.add_trace(go.Scatter(
+                        x=[lx], y=[ly],
+                        mode='markers+text',
+                        marker=dict(color='red', size=8),
+                        text=label,
+                        textposition='top center'
+                    ))
 
         # Setting layout options to ensure square aspect ratio
         fig.update_layout(
@@ -102,18 +121,55 @@ def create_slice_viewer(nifti_data, landmark_data):
             yaxis_title='Y',
             xaxis=dict(scaleanchor="y"),  # This ensures that x and y axes have the same scale
             yaxis=dict(constrain='domain'),
-            height=600,  # Optional, you can adjust this as needed
-            width=600    # Optional, ensuring square aspect ratio
+            height=1000,  # Optional, you can adjust this as needed
+            width=1000    # Optional, ensuring square aspect ratio
         )
         
         return fig
     
     return app
 
-def get_rotation_matrix(source, target):
-    """Compute the rotation matrix that aligns source vector with target vector"""
-    source = source / np.linalg.norm(source)  # Ensure unit vector
-    target = target / np.linalg.norm(target)
+def rotate_image(image, R, pivot):
+    """Apply rotation to an image"""
+    # Convert 3x3 rotation to 4x4 affine transform for 3D images
+    affine_matrix = np.eye(4)
+    affine_matrix[:3, :3] = R
+
+    offset = np.array(pivot) - (R @ np.array(pivot))
+    rotated_image = scipy.ndimage.affine_transform(image, R, offset=offset, order=3)
+    return rotated_image
+
+def rotate_landmarks(voxels_dict, R, points_filter):
+    rotated_dict = {}
+    pivot = np.array(voxels_dict[points_filter[0]])
+
+    for key, value in voxels_dict.items():
+        if isinstance(value[0], (list, tuple, np.ndarray)):  # Check if it's a list of points (curve)
+            rotated_dict[key] = [(np.dot(R, (point - pivot)) + pivot).tolist() for point in value]
+        else:  # Single point case
+            rotated_dict[key] = (np.dot(R, (value - pivot)) + pivot).tolist()
+
+    return rotated_dict
+    
+
+def get_roation_matrix(voxel_dict, points_filter):
+    assert len(points_filter) == 3
+
+    P1 = np.array(voxel_dict[points_filter[0]])
+    P2 = np.array(voxel_dict[points_filter[1]])
+    P3 = np.array(voxel_dict[points_filter[2]])
+
+
+    v1 = P2 - P1
+    v2 = P3 - P1
+    source = (np.cross(v1, v2)) / np.linalg.norm(np.cross(v1, v2))
+
+    A,B,C = source
+
+    D = -np.dot(source, P1)
+
+    print("Source: ", source)
+    target = np.round(source, decimals=0)
 
     # Compute rotation axis (cross product)
     axis = np.cross(source, target)
@@ -134,22 +190,14 @@ def get_rotation_matrix(source, target):
 
     return R
 
-def rotate_image(image, R):
-    """Apply rotation to an image"""
-    # Convert 3x3 rotation to 4x4 affine transform for 3D images
-    affine_matrix = np.eye(4)
-    affine_matrix[:3, :3] = R
+def nifti_w2v(image, affine):
+    inv_affine = np.linalg.inv(affine)
+    return inv_affine @ image
 
-    rotated_image = scipy.ndimage.affine_transform(image, R, order=3)
-    return rotated_image
+def align_surface(image, voxels, point_filter):
+    R = get_roation_matrix(voxels, points_filter=point_filter)
 
-def rotate_landmarks(voxels_dict, R):
-    rotated_dict = {}
+    image = rotate_image(image, R, voxels[point_filter[0]])
+    voxels = rotate_landmarks(voxels, R, points_filter=point_filter)
 
-    for key, value in voxels_dict.items():
-        if isinstance(value[0], (list, tuple, np.ndarray)):  # Check if it's a list of points (curve)
-            rotated_dict[key] = [np.dot(R, np.array(point)).tolist() for point in value]
-        else:  # Single point case
-            rotated_dict[key] = np.dot(R, np.array(value)).tolist()
-
-    return rotated_dict
+    return image, voxels

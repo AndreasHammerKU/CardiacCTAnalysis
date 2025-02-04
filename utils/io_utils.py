@@ -1,6 +1,5 @@
 import os
 import json
-from nibabel.orientations import aff2axcodes
 import nibabel as nib
 import constants as c
 
@@ -15,8 +14,6 @@ def load_data(image_name):
     nifti_data, affine = load_nifti(nifti_path)
 
     # Check scanner orientation 
-    orientation = aff2axcodes(affine)
-    print("Image Orientation is: ", orientation)
 
     # Load landmark JSON
     with open(os.path.join(c.LABELS_FOLDER, image_name + '.json')) as file:
