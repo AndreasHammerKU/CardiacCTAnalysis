@@ -49,7 +49,7 @@ def view_curve(image_name):
 
     #landmarks = vis.ras_to_lps(landmarks)
 
-    geom.plot_3d_points(landmarks, approximation=None)
+    geom.plot_3d_points(landmarks, approximation='bezier')
 
 def test_points(image_name):
     _, affine, landmarks = io.load_data(image_name=image_name)

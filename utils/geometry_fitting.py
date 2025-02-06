@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import least_squares, minimize_scalar
+from sklearn.linear_model import LinearRegression
 
 def split_and_approximate_curve(ax, curve_points, middle_point, approximation):
     closest_index = 0
@@ -29,6 +30,15 @@ def split_and_approximate_curve(ax, curve_points, middle_point, approximation):
         ax.plot(bezier_curve[:,0], bezier_curve[:,1], bezier_curve[:,2], label=f'Left Bezier curve for right leaflet')
 
         ax.scatter(control_points[1,0], control_points[1,1], control_points[1,2], color='orange', marker='o')
+    elif approximation == 'polynomial':
+        A, B, C, D, E, F, mse = fit_parabola(left_curve[:,0], left_curve[:,1], left_curve[:,2])
+        print("loss of curve is {}".format(mse))
+        plot_parabola_fit(ax, left_curve[:,0], left_curve[:,1], left_curve[:,2], A, B, C, D, E, F)
+    elif approximation == 'parabola':
+        A, B, C, D, E, F, G, H, mse = fit_parabola_curve(left_curve[:,0], left_curve[:,1], left_curve[:,2])
+        print("loss of curve is {} for points \n{}".format(mse, left_curve))
+        plot_parabola_curve(ax, left_curve[:,0], left_curve[:,1], left_curve[:,2], A, B, C, D, E, F, G, H)
+    
     # Right Curve
     right_curve = curve[closest_index-1:]
     right_curve = np.vstack([middle_point, right_curve])
@@ -44,6 +54,15 @@ def split_and_approximate_curve(ax, curve_points, middle_point, approximation):
         ax.plot(bezier_curve[:,0], bezier_curve[:,1], bezier_curve[:,2], label=f'Right Bezier curve for right leaflet')
         
         ax.scatter(control_points[1,0], control_points[1,1], control_points[1,2], color='orange', marker='o')
+    elif approximation == 'polynomial':
+        A, B, C, D, E, F, mse = fit_parabola(right_curve[:,0], right_curve[:,1], right_curve[:,2])
+        print("loss of curve is {}".format(mse))
+        plot_parabola_fit(ax, right_curve[:,0], right_curve[:,1], right_curve[:,2], A, B, C, D, E, F)
+    elif approximation == 'parabola':
+        A, B, C, D, E, F, G, H, mse = fit_parabola_curve(right_curve[:,0], right_curve[:,1], right_curve[:,2])
+        print("loss of curve is {} for points \n{}".format(mse, right_curve))
+        plot_parabola_curve(ax, right_curve[:,0], right_curve[:,1], right_curve[:,2], A, B, C, D, E, F, G, H)
+    
 
 def plot_3d_points(landmarks, approximation='bezier'):
     single_points = ['R', 'L', 'N', 'RLC', 'RNC', 'LNC']
@@ -94,7 +113,7 @@ def closest_t_on_bezier(bezier_func, control_points, Q):
     res = minimize_scalar(distance_to_curve, bounds=(0, 1), method='bounded')
     return res.x
 
-def fit_quadratic_bezier(points):
+def fit_quadratic_bezier(points, lambda_reg =0.0001):
     P0, P2 = points[0], points[-1]
     
     def loss(P1_flat):
@@ -102,7 +121,13 @@ def fit_quadratic_bezier(points):
         control_points = (P0, P1, P2)
         t_values = np.array([closest_t_on_bezier(bezier_quadratic, control_points, Q) for Q in points])
         bezier_points = np.array([bezier_quadratic(*control_points, t) for t in t_values])
-        return (bezier_points - points).flatten()
+
+        mse_loss = (bezier_points - points).flatten()
+
+        midpoint = (P0 + P2) / 2
+        reg_loss = lambda_reg * np.linalg.norm(P1 - midpoint) ** 2
+
+        return np.append(mse_loss, reg_loss)
     
     P1_init = (P0 + P2) / 2
     res = least_squares(loss, P1_init)
@@ -142,6 +167,62 @@ def fit_quadratic_polynomial(points):
     mse = np.mean(np.linalg.norm(fitted_points - points, axis=1) ** 2)
     
     return fitted_points, mse
+
+def fit_parabola(x, y, z):
+    # Construct the design matrix
+    X = np.column_stack((x**2, x*y, y**2, x, y, np.ones_like(x)))
+    
+    # Solve using least squares
+    model = LinearRegression()
+    model.fit(X, z)
+    
+    # Extract coefficients
+    A, B, C, D, E, F = model.coef_[0], model.coef_[1], model.coef_[2], model.coef_[3], model.coef_[4], model.intercept_
+    
+    # Compute MSE
+    z_pred = model.predict(X)
+    mse = np.mean((z - z_pred)**2)
+    
+    return A, B, C, D, E, F, mse
+
+def fit_parabola_curve(x, y, z):
+    # Design matrix for quadratic regression
+    X = np.column_stack((x**3, x**2, x, np.ones_like(x)))
+    
+    # Fit y = A x^2 + B x + C
+    model_y = LinearRegression().fit(X, y)
+    A, B, C, D = model_y.coef_[0], model_y.coef_[1], model_y.coef_[2], model_y.intercept_
+    
+    # Fit z = D x^2 + E x + F
+    model_z = LinearRegression().fit(X, z)
+    E, F, G, H = model_z.coef_[0], model_z.coef_[1], model_z.coef_[2], model_z.intercept_
+    
+    # Compute MSE
+    y_pred = model_y.predict(X)
+    z_pred = model_z.predict(X)
+    mse_y = np.mean((y - y_pred) ** 2)
+    mse_z = np.mean((z - z_pred) ** 2)
+    mse_total = (mse_y + mse_z) / 2
+    
+    return A, B, C, D, E, F, G, H, mse_total
+
+def plot_parabola_fit(ax, x, y, z, A, B, C, D, E, F):
+    # Create a grid for plotting the fitted surface
+    x_range = np.linspace(min(x), max(x), 30)
+    y_range = np.linspace(min(y), max(y), 30)
+    X, Y = np.meshgrid(x_range, y_range)
+    Z = A*X**2 + B*X*Y + C*Y**2 + D*X + E*Y + F
+    
+    # Plot the surface
+    ax.plot_surface(X, Y, Z, alpha=0.5, color='cyan', edgecolor='k')
+
+def plot_parabola_curve(ax, x, y, z, A, B, C, D, E, F, G, H):    
+    x_fit = np.linspace(min(x), max(x), 100)
+    y_fit = A * x_fit**3 + B * x_fit**2 + C * x_fit + D
+    z_fit = E * x_fit**3 + F * x_fit**2 + G * x_fit + H
+    
+    # Plot the fitted curve
+    ax.plot(x_fit, y_fit, z_fit, color='blue', linewidth=2, label='Fitted Parabola')
 
 def draw_line_to_endpoints(points, granularity):
     return np.linspace(points[0], points[-1], granularity)
