@@ -13,6 +13,7 @@ def ras_to_lps(dict):
         else:  # Single point case
             converted_dict[key] = np.array([-value[0], -value[1], value[2]]).tolist()
     return converted_dict
+    
 
 def world_to_voxel(landmarks, affine, orientation=('L', 'P', 'S')):
     inv_affine = np.linalg.inv(affine)

@@ -48,8 +48,23 @@ def view_curve(image_name):
     print("Image Orientation is: ", orientation)
 
     #landmarks = vis.ras_to_lps(landmarks)
+    geometry = geom.LeafletGeometry(landmarks)
+    geometry.calculate_bezier_curves()
+    control_point = geometry.Control_points[0][1]
+    print(control_point)
+    inv_affine = np.linalg.inv(affine)
+    voxel_point = np.dot(inv_affine, np.append(control_point, 1))[:3].tolist()
+    print(voxel_point)
 
-    geom.plot_3d_points(landmarks, approximation='bezier')
+
+    print("Average error in image {} is {}".format(image_name, geometry.get_average_mse()))
+    geometry.plot(plot_label_points=True, plot_control_points=True)
+
+def generate_ground_truth():
+    for i in range(50):
+        image_name = f'n{i+1}'
+
+
 
 def test_points(image_name):
     _, affine, landmarks = io.load_data(image_name=image_name)
@@ -64,9 +79,12 @@ def test_points(image_name):
 
 def main():
     #create_slice_viewer()
-    for i in range(10):
-        image_name = f'n{i+1}'
-        view_curve(image_name)
+    #for i in range(10):
+    #    image_name = f'n{i+1}'
+    #    view_curve(image_name)
+
+    view_curve('n2')
+    #create_slice_viewer(image_name=image_name)
     
 
 
