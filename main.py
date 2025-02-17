@@ -4,6 +4,7 @@ import utils.io_utils as io
 from nibabel.orientations import aff2axcodes
 import utils.geometry_fitting as geom
 import matplotlib.pyplot as plt
+import environment as env
 
 np.set_printoptions(suppress=True, precision=6)  # Suppress scientific notation, set decimal places
 
@@ -42,22 +43,24 @@ def create_slice_viewer(image_name):
     app.run_server(debug=True)
 
 def view_curve(image_name):
-    _, affine, landmarks = io.load_data(image_name=image_name)
+    image, affine, landmarks = io.load_data(image_name=image_name)
 
+    landmarks = vis.ras_to_lps(landmarks)
+    print("Image shape: {}".format(image.shape))
     orientation = aff2axcodes(affine)
     print("Image Orientation is: ", orientation)
-
+    voxel_landmarks = vis.world_to_voxel(landmarks=landmarks, affine=affine)
     #landmarks = vis.ras_to_lps(landmarks)
-    geometry = geom.LeafletGeometry(landmarks)
+    geometry = geom.LeafletGeometry(voxel_landmarks)
     geometry.calculate_bezier_curves()
-    control_point = geometry.Control_points[0][1]
-    print(control_point)
-    inv_affine = np.linalg.inv(affine)
-    voxel_point = np.dot(inv_affine, np.append(control_point, 1))[:3].tolist()
-    print(voxel_point)
 
+    print("Average error in transformed image {} is {}".format(image_name, geometry.get_average_mse()))
+    geometry.plot(plot_label_points=True, plot_control_points=True)
+    geometry = geom.LeafletGeometry(landmarks=landmarks)
+    geometry.calculate_bezier_curves()
 
-    print("Average error in image {} is {}".format(image_name, geometry.get_average_mse()))
+    print("Average error in rps image {} is {}".format(image_name, geometry.get_average_mse()))
+
     geometry.plot(plot_label_points=True, plot_control_points=True)
 
 def generate_ground_truth():
@@ -89,4 +92,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    environ = env.MedicalImageEnvironment()
+    

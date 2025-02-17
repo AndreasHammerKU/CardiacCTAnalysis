@@ -15,7 +15,7 @@ def ras_to_lps(dict):
     return converted_dict
     
 
-def world_to_voxel(landmarks, affine, orientation=('L', 'P', 'S')):
+def world_to_voxel(landmarks, affine):
     inv_affine = np.linalg.inv(affine)
     voxel_landmarks = {}
 
