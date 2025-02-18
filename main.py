@@ -5,6 +5,8 @@ from nibabel.orientations import aff2axcodes
 import utils.geometry_fitting as geom
 import matplotlib.pyplot as plt
 import environment as env
+from trainer import Trainer
+from logger import Logger
 
 np.set_printoptions(suppress=True, precision=6)  # Suppress scientific notation, set decimal places
 
@@ -81,16 +83,14 @@ def test_points(image_name):
     print("For image name {} cloest point {}, norm {}".format(image_name, closest, np.linalg.norm(closest)))
 
 def main():
-    #create_slice_viewer()
-    #for i in range(10):
-    #    image_name = f'n{i+1}'
-    #    view_curve(image_name)
+    vision_size = (9,9,9)
+    logger = Logger('./logs/', True, 1000, '')
+    environ = env.MedicalImageEnvironment(vision_size=vision_size)
 
-    view_curve('n2')
-    #create_slice_viewer(image_name=image_name)
+    trainer = Trainer(env=environ, image_size=vision_size, logger=logger, init_memory_size=100, replay_buffer_size=100)
+    trainer.train()
     
 
 
 if __name__ == "__main__":
-    environ = env.MedicalImageEnvironment()
-    
+    main()

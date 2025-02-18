@@ -1,7 +1,8 @@
-import os
+
 import json
 import nibabel as nib
 import constants as c
+import os
 
 def load_nifti(file_path):
     nii_img = nib.load(file_path)

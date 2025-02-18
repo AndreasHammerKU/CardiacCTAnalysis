@@ -18,7 +18,7 @@ Rectangle = namedtuple(
 
 class MedicalImageEnvironment(gym.Env):
 
-    def __init__(self, task="train", n_sample_points=5, memory_size=28, vision_size=(9, 9, 9), agents=1):
+    def __init__(self, task="train", n_sample_points=5, memory_size=28, vision_size=(9, 9, 9), agents=6):
 
         super(MedicalImageEnvironment, self).__init__()
 
@@ -57,8 +57,8 @@ class MedicalImageEnvironment(gym.Env):
         self.get_new_run()
 
     def get_new_run(self):
-        image_name = 'n{}'.format(random.randint(1,50))
-        self._image, affine, landmarks = io.load_data(image_name=image_name)
+        self.image_name = 'n{}'.format(random.randint(1,50))
+        self._image, affine, landmarks = io.load_data(image_name=self.image_name)
         landmarks = vis.ras_to_lps(landmarks)
         voxel_landmarks = vis.world_to_voxel(landmarks=landmarks, affine=affine)
         geometry = geom.LeafletGeometry(landmarks=voxel_landmarks)
@@ -179,6 +179,50 @@ class MedicalImageEnvironment(gym.Env):
                 # Left out of bounds
                 go_out[i] = True
 
+        if self.task != 'play':
+            for i in range(self.agents):
+                if go_out[i]:
+                    self.reward[i] = -1
+                else:
+                    self.reward[i] = self._calc_reward(
+                        current_loc[i], next_location[i], agent=i)
+
+        self._location = next_location
+        self._screen = self._current_state()
+
+        if self.task != 'test':
+            for i in range(self.agents):
+                self.cur_dist[i] = self.calculate_distance(self._location[i],
+                                                     self._ground_truth[i])            
+
+        if self.task == 'train':
+            for i in range(self.agents):
+                if self.cur_dist[i] <= 1:
+                    self.logger.log(f"distance of agent {i} is <= 1")
+                    self.terminal[i] = True
+                    self.num_success[i] += 1
+
+        self._update_history()
+        distance_error = self.cur_dist
+        for i in range(self.agents):
+            self.current_episode_score[i].append(self.reward[i])
+
+        info = {}
+        for i in range(self.agents):
+            info[f"score_{i}"] = np.sum(self.current_episode_score[i])
+            info[f"gameOver_{i}"] = self.terminal[i]
+            info[f"filename_{i}"] = self.image_name
+            info[f"agent_xpos_{i}"] = self._location[i][0]
+            info[f"agent_ypos_{i}"] = self._location[i][1]
+            info[f"agent_zpos_{i}"] = self._location[i][2]
+            if self._ground_truth is not None:
+                info[f"distError_{i}"] = distance_error[i]
+                info[f"landmark_xpos_{i}"] = self._ground_truth[i][0]
+                info[f"landmark_ypos_{i}"] = self._ground_truth[i][1]
+                info[f"landmark_zpos_{i}"] = self._ground_truth[i][2]
+        return self._current_state(), self.reward, self.terminal, info
+
+
     def calculate_distance(self, source, target):
         point1 = np.array([source[0], source[1], source[2]])
         point2 = np.array([target[0], target[1], target[2]])
@@ -187,3 +231,53 @@ class MedicalImageEnvironment(gym.Env):
 
     def reset_stat(self):
         self.num_runs = 0
+
+    def reset(self):
+        self._restart_episode()
+        return self._current_state()
+    
+    def getBestLocation(self):
+        ''' get best location with best qvalue from last for locations
+        stored in history
+        '''
+        best_locations = []
+        for i in range(self.agents):
+            last_qvalues_history = self._qvalues_history[i][-4:]
+            last_loc_history = self._loc_history[i][-4:]
+            best_qvalues = np.max(last_qvalues_history, axis=1)
+            best_idx = best_qvalues.argmin()
+            best_locations.append(last_loc_history[best_idx])
+        return best_locations
+
+    def _clear_history(self):
+        ''' clear history buffer with current states
+        '''
+        self._loc_history = [
+            [(0,) * self.dims for _ in range(self._history_length)]
+            for _ in range(self.agents)]
+        self._qvalues_history = [
+            [(0,) * self.actions for _ in range(self._history_length)]
+            for _ in range(self.agents)]
+    
+    def _update_history(self):
+        ''' update history buffer with current states
+        '''
+        for i in range(self.agents):
+            # update location history
+            self._loc_history[i].pop(0)
+            self._loc_history[i].insert(
+                len(self._loc_history[i]), self._location[i])
+
+            # update q-value history
+            self._qvalues_history[i].pop(0)
+            self._qvalues_history[i].insert(
+                len(self._qvalues_history[i]), self._qvalues[i])
+            
+    def _calc_reward(self, current_loc, next_loc, agent):
+        """
+        Calculate the new reward based on the decrease in euclidean distance to
+        the target location
+        """
+        curr_dist = self.calculate_distance(current_loc, self._ground_truth[agent])
+        next_dist = self.calculate_distance(next_loc, self._ground_truth[agent])
+        return curr_dist - next_dist
