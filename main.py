@@ -1,8 +1,5 @@
 import numpy as np
-import utils.visualiser as vis
 import utils.io_utils as io
-import utils.geometry_fitting as geom
-import matplotlib.pyplot as plt
 import logging
 from baseline.BaseEnvironment import MedicalImageEnvironment
 from utils.io_utils import DataLoader

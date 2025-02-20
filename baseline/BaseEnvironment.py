@@ -97,8 +97,10 @@ class MedicalImageEnvironment(gym.Env):
         new_location = np.clip(self._location[0] + np.array(self.actions[action]), [0, 0, 0], np.array(self.image.shape) - 1)
 
         reward = np.linalg.norm(self._location[0] - self._ground_truth[0]) - np.linalg.norm(new_location - self._ground_truth[0])
-
+        
+        self._location[0] = new_location
         self.state = self._update_state()
+
 
         done = np.array_equal(self._location[0], self._ground_truth[0])
         return self.state, reward, done
