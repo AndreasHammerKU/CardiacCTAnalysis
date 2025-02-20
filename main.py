@@ -1,69 +1,36 @@
 import numpy as np
 import utils.visualiser as vis
 import utils.io_utils as io
-from nibabel.orientations import aff2axcodes
 import utils.geometry_fitting as geom
 import matplotlib.pyplot as plt
-import environment as env
-from trainer import Trainer
-from logger import Logger
+import logging
+from baseline.BaseEnvironment import MedicalImageEnvironment
 
 np.set_printoptions(suppress=True, precision=6)  # Suppress scientific notation, set decimal places
 
+def setup_logger(debug=False):
 
-def create_slice_viewer(image_name):
-    nifti_data, affine, landmarks = io.load_data(image_name=image_name)
+    logger = logging.getLogger("Logger")
+    
+    if debug:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
 
-    orientation = aff2axcodes(affine)
-    print("Image Orientation is: ", orientation)
+    file_handler = logging.FileHandler("log.txt")
+    console_handler = logging.StreamHandler()
 
-    landmarks = vis.ras_to_lps(landmarks)
+    # Formatter
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
 
-    voxels = vis.world_to_voxel(landmarks=landmarks, affine=affine)
+    # Add handlers to logger
+    if not logger.hasHandlers():  # Avoid duplicate handlers in case of re-runs
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
 
-    point_filter = ['R', 'RLC', 'RNC']
-
-    rotated_image, rotated_voxels = vis.align_surface(nifti_data, voxels, point_filter)
-
-
-    # Project RCI onto plane.
-    y_level = rotated_voxels['R'][1]
-
-    curve = np.array(rotated_voxels['RCI'])
-
-    X = curve[:,0]
-    Y = curve[:,1]
-    Z = curve[:,2]
-
-    new_points = []
-    for point in rotated_voxels['RCI']:
-        new_point = [point[0], y_level, point[2]]
-        new_points.append(new_point)
-    rotated_voxels['RCI'] = new_points
-
-    app = vis.create_slice_viewer(rotated_image, rotated_voxels)
-    app.run_server(debug=True)
-
-def view_curve(image_name):
-    image, affine, landmarks = io.load_data(image_name=image_name)
-
-    landmarks = vis.ras_to_lps(landmarks)
-    print("Image shape: {}".format(image.shape))
-    orientation = aff2axcodes(affine)
-    print("Image Orientation is: ", orientation)
-    voxel_landmarks = vis.world_to_voxel(landmarks=landmarks, affine=affine)
-    #landmarks = vis.ras_to_lps(landmarks)
-    geometry = geom.LeafletGeometry(voxel_landmarks)
-    geometry.calculate_bezier_curves()
-
-    print("Average error in transformed image {} is {}".format(image_name, geometry.get_average_mse()))
-    geometry.plot(plot_label_points=True, plot_control_points=True)
-    geometry = geom.LeafletGeometry(landmarks=landmarks)
-    geometry.calculate_bezier_curves()
-
-    print("Average error in rps image {} is {}".format(image_name, geometry.get_average_mse()))
-
-    geometry.plot(plot_label_points=True, plot_control_points=True)
+    return logger
 
 def generate_ground_truth():
     for i in range(50):
@@ -81,13 +48,9 @@ def test_points(image_name):
     print("For image name {} cloest point {}, norm {}".format(image_name, closest, np.linalg.norm(closest)))
 
 def main():
-    vision_size = (9,9,9)
-    logger = Logger('./logs/', True, 1000, '')
-    environ = env.MedicalImageEnvironment(vision_size=vision_size)
+    logger = setup_logger(True)
 
-    trainer = Trainer(env=environ, image_size=vision_size, logger=logger, init_memory_size=1000, replay_buffer_size=1000)
-    trainer.train()
-    
+    env = MedicalImageEnvironment(logger=logger, image_list=['n1', 'n2', 'n3'], agents=1)
 
 
 if __name__ == "__main__":

@@ -4,6 +4,9 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output
 import scipy
+from nibabel.orientations import aff2axcodes
+import utils.io_utils as io
+import utils.geometry_fitting as geom
 
 def ras_to_lps(dict):
     converted_dict = {}
@@ -202,3 +205,58 @@ def align_surface(image, voxels, point_filter):
     voxels = rotate_landmarks(voxels, R, points_filter=point_filter)
 
     return image, voxels
+
+
+def create_slice_viewer(image_name):
+    nifti_data, affine, landmarks = io.load_data(image_name=image_name)
+
+    orientation = aff2axcodes(affine)
+    print("Image Orientation is: ", orientation)
+
+    landmarks = ras_to_lps(landmarks)
+
+    voxels = world_to_voxel(landmarks=landmarks, affine=affine)
+
+    point_filter = ['R', 'RLC', 'RNC']
+
+    rotated_image, rotated_voxels = align_surface(nifti_data, voxels, point_filter)
+
+
+    # Project RCI onto plane.
+    y_level = rotated_voxels['R'][1]
+
+    curve = np.array(rotated_voxels['RCI'])
+
+    X = curve[:,0]
+    Y = curve[:,1]
+    Z = curve[:,2]
+
+    new_points = []
+    for point in rotated_voxels['RCI']:
+        new_point = [point[0], y_level, point[2]]
+        new_points.append(new_point)
+    rotated_voxels['RCI'] = new_points
+
+    app = create_slice_viewer(rotated_image, rotated_voxels)
+    app.run_server(debug=True)
+
+def view_curve(image_name):
+    image, affine, landmarks = io.load_data(image_name=image_name)
+
+    landmarks = ras_to_lps(landmarks)
+    print("Image shape: {}".format(image.shape))
+    orientation = aff2axcodes(affine)
+    print("Image Orientation is: ", orientation)
+    voxel_landmarks = world_to_voxel(landmarks=landmarks, affine=affine)
+    #landmarks = vis.ras_to_lps(landmarks)
+    geometry = geom.LeafletGeometry(voxel_landmarks)
+    geometry.calculate_bezier_curves()
+
+    print("Average error in transformed image {} is {}".format(image_name, geometry.get_average_mse()))
+    geometry.plot(plot_label_points=True, plot_control_points=True)
+    geometry = geom.LeafletGeometry(landmarks=landmarks)
+    geometry.calculate_bezier_curves()
+
+    print("Average error in rps image {} is {}".format(image_name, geometry.get_average_mse()))
+
+    geometry.plot(plot_label_points=True, plot_control_points=True)
