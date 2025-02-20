@@ -172,7 +172,7 @@ class MedicalImageEnvironment(gym.Env):
 
         for i in range(self.agents):
             movement = self.action_vectors[action[i]]
-            next_location[i] = current_loc[i] + movement
+            next_location[i] = tuple([sum(x) for x in zip(current_loc[i], movement)])
 
             if not all(0 <= idx < dim for idx, dim in zip(next_location[i], self._image.shape)):
                 next_location[i] = current_loc[i]
@@ -186,7 +186,6 @@ class MedicalImageEnvironment(gym.Env):
                 else:
                     self.reward[i] = self._calc_reward(
                         current_loc[i], next_location[i], agent=i)
-
         self._location = next_location
         self._screen = self._current_state()
 

@@ -14,7 +14,7 @@ class Trainer(object):
                  replay_buffer_size=1e4,
                  init_memory_size=1e4,
                  max_episodes=100,
-                 steps_per_episode=50,
+                 steps_per_episode=200,
                  eps=1,
                  min_eps=0.1,
                  delta=0.001,
@@ -201,7 +201,6 @@ class Trainer(object):
     def get_greedy_actions(self, obs_stack, doubleLearning=True):
         inputs = torch.tensor(obs_stack, dtype=torch.float32)
         if doubleLearning:
-            print("Inputs shape: ", inputs.shape)
             q_vals = self.dqn.q_network.forward(inputs[:,-1,:,:,:,:]).detach().squeeze(0)
         else:
             q_vals = self.dqn.target_network.forward(

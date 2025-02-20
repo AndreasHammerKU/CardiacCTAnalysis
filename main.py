@@ -69,8 +69,6 @@ def generate_ground_truth():
     for i in range(50):
         image_name = f'n{i+1}'
 
-
-
 def test_points(image_name):
     _, affine, landmarks = io.load_data(image_name=image_name)
     closest = [0, 0, 0]
@@ -87,7 +85,7 @@ def main():
     logger = Logger('./logs/', True, 1000, '')
     environ = env.MedicalImageEnvironment(vision_size=vision_size)
 
-    trainer = Trainer(env=environ, image_size=vision_size, logger=logger, init_memory_size=100, replay_buffer_size=100)
+    trainer = Trainer(env=environ, image_size=vision_size, logger=logger, init_memory_size=1000, replay_buffer_size=1000)
     trainer.train()
     
 
