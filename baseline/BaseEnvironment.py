@@ -3,18 +3,18 @@ import gym
 import numpy as np
 from collections import (Counter, defaultdict, deque, namedtuple)
 import random
-from utils.io_utils import load_data
 from utils.geometry_fitting import LeafletGeometry
 from utils.visualiser import ras_to_lps, world_to_voxel
 import copy
 
 class MedicalImageEnvironment(gym.Env):
 
-    def __init__(self, task="train", n_sample_points=5, memory_size=28, vision_size=(21, 21, 21), agents=6, image_list=None, logger=None):
+    def __init__(self, task="train", dataLoader=None, n_sample_points=5, memory_size=28, vision_size=(21, 21, 21), agents=6, image_list=None, logger=None):
 
         super(MedicalImageEnvironment, self).__init__()
 
         self.logger = logger
+        self.dataLoader = dataLoader
         self.image_list = image_list
         self.agents = agents
         self.task = task
@@ -39,7 +39,7 @@ class MedicalImageEnvironment(gym.Env):
 
     def get_next_image(self):
         image_name = random.choice(self.image_list)
-        self.image, affine, landmarks = load_data(image_name=image_name)
+        self.image, affine, landmarks = self.dataLoader.load_data(image_name=image_name)
 
         landmarks =  ras_to_lps(landmarks)
         voxel_landmarks = world_to_voxel(landmarks=landmarks, affine=affine)

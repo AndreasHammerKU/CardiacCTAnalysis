@@ -5,7 +5,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 import scipy
 from nibabel.orientations import aff2axcodes
-import utils.io_utils as io
+from utils.io_utils import DataLoader
 import utils.geometry_fitting as geom
 
 def ras_to_lps(dict):
@@ -207,8 +207,8 @@ def align_surface(image, voxels, point_filter):
     return image, voxels
 
 
-def create_slice_viewer(image_name):
-    nifti_data, affine, landmarks = io.load_data(image_name=image_name)
+def create_slice_viewer(image_name, dataLoader):
+    nifti_data, affine, landmarks = dataLoader.load_data(image_name=image_name)
 
     orientation = aff2axcodes(affine)
     print("Image Orientation is: ", orientation)
@@ -240,8 +240,8 @@ def create_slice_viewer(image_name):
     app = create_slice_viewer(rotated_image, rotated_voxels)
     app.run_server(debug=True)
 
-def view_curve(image_name):
-    image, affine, landmarks = io.load_data(image_name=image_name)
+def view_curve(image_name, dataLoader):
+    image, affine, landmarks = dataLoader.load_data(image_name=image_name)
 
     landmarks = ras_to_lps(landmarks)
     print("Image shape: {}".format(image.shape))

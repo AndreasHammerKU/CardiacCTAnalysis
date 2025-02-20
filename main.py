@@ -5,6 +5,8 @@ import utils.geometry_fitting as geom
 import matplotlib.pyplot as plt
 import logging
 from baseline.BaseEnvironment import MedicalImageEnvironment
+from utils.io_utils import DataLoader
+import constants as c
 
 np.set_printoptions(suppress=True, precision=6)  # Suppress scientific notation, set decimal places
 
@@ -49,8 +51,12 @@ def test_points(image_name):
 
 def main():
     logger = setup_logger(True)
-
-    env = MedicalImageEnvironment(logger=logger, image_list=['n1', 'n2', 'n3'], agents=1)
+    
+    dataLoader = DataLoader(c.DATASET_FOLDER)
+    env = MedicalImageEnvironment(logger=logger, 
+                                  dataLoader=dataLoader, 
+                                  image_list=['n1', 'n2', 'n3'], 
+                                  agents=1)
 
 
 if __name__ == "__main__":
