@@ -4,7 +4,6 @@ import logging
 from baseline.BaseEnvironment import MedicalImageEnvironment
 from utils.io_utils import DataLoader
 from baseline.BaseAgent import DQNAgent
-from baseline.BaseDQN import Network3D
 import constants as c
 
 np.set_printoptions(suppress=True, precision=6)  # Suppress scientific notation, set decimal places

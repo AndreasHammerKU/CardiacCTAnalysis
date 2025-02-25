@@ -26,10 +26,10 @@ class DQNAgent:
 
         self.policy_net = Network3D(agents=1, 
                       n_sample_points=self.env.n_sample_points, 
-                      number_actions=self.env.n_actions)
+                      number_actions=self.env.n_actions).to(self.device)
         self.target_net = Network3D(agents=1, 
                       n_sample_points=self.env.n_sample_points, 
-                      number_actions=self.env.n_actions)
+                      number_actions=self.env.n_actions).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
         self.criterion = nn.MSELoss()
