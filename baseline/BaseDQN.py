@@ -47,7 +47,7 @@ class Network3D(nn.Module):
         if xavier:
             for module in self.modules():
                 if type(module) in [nn.Conv3d, nn.Linear]:
-                    torch.nn.init.xavier_uniform(module.weight)
+                    torch.nn.init.xavier_uniform_(module.weight)
 
     def forward(self, input):
         """
