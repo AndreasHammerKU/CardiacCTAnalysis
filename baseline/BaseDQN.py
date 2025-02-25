@@ -9,28 +9,27 @@ class Network3D(nn.Module):
 
         self.agents = agents
         self.n_sample_points = n_sample_points
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
 
         self.conv0 = nn.Conv3d(
             in_channels=n_sample_points,
             out_channels=16,
             kernel_size=(3, 3, 3),
-            padding=1)
+            padding=2,
+            stride=2)
         self.maxpool0 = nn.MaxPool3d(kernel_size=(2, 2, 2))
         self.prelu0 = nn.PReLU()
         self.conv1 = nn.Conv3d(
             in_channels=16,
             out_channels=32,
             kernel_size=(3, 3, 3),
-            padding=1)
+            padding=2)
         self.maxpool1 = nn.MaxPool3d(kernel_size=(2, 2, 2))
         self.prelu1 = nn.PReLU()
         self.conv2 = nn.Conv3d(
             in_channels=32,
             out_channels=32,
-            kernel_size=(2, 2, 2),
-            padding=1)
+            kernel_size=(3, 3, 3),
+            padding=2)
         self.maxpool2 = nn.MaxPool3d(kernel_size=(2, 2, 2))
         self.prelu2 = nn.PReLU()
 
@@ -60,7 +59,7 @@ class Network3D(nn.Module):
         output = []
         batched = False
         if len(input.shape) == 6:
-            batched = True
+            batched = True 
         # Shared layers
         for i in range(self.agents):
             if batched:

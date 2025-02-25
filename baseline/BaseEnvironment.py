@@ -6,6 +6,7 @@ import random
 from utils.geometry_fitting import LeafletGeometry
 from utils.visualiser import ras_to_lps, world_to_voxel
 import copy
+import torch
 
 class MedicalImageEnvironment(gym.Env):
 
@@ -32,9 +33,9 @@ class MedicalImageEnvironment(gym.Env):
 
         self.dims = len(vision_size)
         self.state_size = (self.agents, self.n_sample_points, self.width, self.height, self.depth)
-
-        self.get_next_image()
-        self.reset()
+        
+        #self.get_next_image()
+        #self.reset()
 
 
     def get_next_image(self):
@@ -57,9 +58,12 @@ class MedicalImageEnvironment(gym.Env):
         self.logger.debug("Loaded image: {} with ground truth {} and starting point {}".format(image_name, self._ground_truth[0], self.midpoint[0]))
 
     def reset(self):
+        self._get_next_episode()
+        return self.state
+
+    def _get_next_episode(self):
         self._location = [(self.midpoint[i][0], self.midpoint[i][1], self.midpoint[i][2]) for i in range(self.agents)]
         self.state = self._update_state()
-        return self.state
 
     def _update_state(self):
         self._sample_points = np.zeros((

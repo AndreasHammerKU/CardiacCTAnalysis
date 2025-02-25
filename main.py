@@ -55,23 +55,12 @@ def main():
     dataLoader = DataLoader(c.DATASET_FOLDER)
     env = MedicalImageEnvironment(logger=logger, 
                                   dataLoader=dataLoader, 
-                                  image_list=['n1', 'n2', 'n3'], 
+                                  image_list=['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8', 'n9', 'n10', 'n11', 'n12', 'n13', 'n14', 'n15', 'n16', 'n17', 'n18', 'n19', 'n20', 'n21', 'n22', 'n23', 'n24', 'n25', 'n26', 'n27', 'n28', 'n29', 'n30'], 
                                   agents=1,
                                   n_sample_points=n_sample_points)
-    
-    # Hyperparameters
-    gamma = 0.9  # Discount factor
-    lr = 0.01  # Learning rate
-    epsilon = 0.1  # Exploration rate
-    episodes = 500
-    batch_size = 16
-
-    model = Network3D(agents=1, n_sample_points=n_sample_points, number_actions=env.n_actions)
-
     agent = DQNAgent(environment=env,
                      state_dim=env.state_size,
                      action_dim=env.n_actions,
-                     model=model,
                      agents=1)
     
     agent.train_dqn()
