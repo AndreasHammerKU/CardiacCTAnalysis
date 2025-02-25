@@ -23,6 +23,7 @@ class DQNAgent:
         self.decay = decay
         self.agents = agents
         self.n_actions = self.env.n_actions
+        print(self.device)
 
         self.policy_net = Network3D(agents=1, 
                       n_sample_points=self.env.n_sample_points, 
@@ -52,7 +53,7 @@ class DQNAgent:
         actions = torch.cat([a.unsqueeze(0) for a in batch.action], dim=0)
         rewards = torch.cat([r.unsqueeze(0) for r in batch.reward], dim=0)
 
-        non_done_mask = [not val for val in batch.done]
+        non_done_mask = torch.tensor([not val for val in batch.done], device=self.device, dtype=torch.bool)
         non_done_next_states = torch.cat([s for s,d in zip(batch.next_state, batch.done) if not d])
 
         state_action_values = self.policy_net(states).view(
@@ -95,7 +96,7 @@ class DQNAgent:
                 
                 state = next_state
 
-                loss = self.optimize_model()
+                self.optimize_model()
                 
                 target_net_state_dict = self.target_net.state_dict()
                 policy_net_state_dict = self.policy_net.state_dict()
