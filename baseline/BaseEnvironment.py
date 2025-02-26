@@ -10,13 +10,25 @@ import torch
 
 class MedicalImageEnvironment(gym.Env):
 
-    def __init__(self, task="train", dataLoader=None, n_sample_points=5, memory_size=28, vision_size=(21, 21, 21), agents=6, image_list=None, logger=None):
+    def __init__(self, task="train", 
+                       dataLoader=None, 
+                       n_sample_points=5, 
+                       memory_size=28,
+                       vision_size=(21, 21, 21), 
+                       agents=6, 
+                       image_list=None, 
+                       logger=None, 
+                       preload_images=False):
 
         super(MedicalImageEnvironment, self).__init__()
 
         self.logger = logger
         self.dataLoader = dataLoader
         self.image_list = image_list
+
+        if preload_images:
+            self.dataLoader.preload_images(image_list)
+
         self.agents = agents
         self.task = task
         
@@ -33,13 +45,23 @@ class MedicalImageEnvironment(gym.Env):
 
         self.dims = len(vision_size)
         self.state_size = (self.agents, self.n_sample_points, self.width, self.height, self.depth)
+
+        if task != "train":
+            self.current_image = 0
         
         #self.get_next_image()
         #self.reset()
 
 
     def get_next_image(self):
-        image_name = random.choice(self.image_list)
+        if self.task == "train":
+            image_name = random.choice(self.image_list)
+        else:
+            image_name = self.image_list[self.current_image]
+            self.current_image += 1
+            if self.current_image >= len(self.image_list):
+                self.current_image = 0
+        
         self.image, affine, landmarks = self.dataLoader.load_data(image_name=image_name)
 
         landmarks =  ras_to_lps(landmarks)
@@ -105,7 +127,7 @@ class MedicalImageEnvironment(gym.Env):
         self._location[0] = new_location
         self.state = self._update_state()
 
-
+        self.distance_to_truth = np.linalg.norm(self._location[0] - self._ground_truth[0])
         done = np.array_equal(self._location[0], self._ground_truth[0])
         return self.state, reward, done
 

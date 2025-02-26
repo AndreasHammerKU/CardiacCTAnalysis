@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import random
+import random, math
 import numpy as np
 from scipy.special import binom
 from collections import deque
@@ -10,20 +10,37 @@ from baseline.BaseDQN import Network3D
 
 
 class DQNAgent:
-    def __init__(self,  environment, state_dim, action_dim, lr=0.001, gamma=0.99, epsilon=1.0, min_epsilon=0.01, decay=0.995, agents=6, tau=0.005):
+    def __init__(self,  environment, 
+                        state_dim, 
+                        action_dim, 
+                        logger=None, 
+                        task="train", 
+                        model_path=None, 
+                        lr=0.001, 
+                        gamma=0.99, 
+                        max_epsilon=1.0, 
+                        min_epsilon=0.01, 
+                        decay=250, 
+                        agents=6, 
+                        tau=0.005, 
+                        max_steps=1000,
+                        episodes=50,
+                        image_interval=1):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.env = environment
+        self.logger = logger
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.gamma = gamma
         self.tau = tau
-        self.epsilon = epsilon
-        self.initial_epsilon = epsilon
+        self.max_epsilon = max_epsilon
         self.min_epsilon = min_epsilon
         self.decay = decay
         self.agents = agents
         self.n_actions = self.env.n_actions
-        print(self.device)
+        self.max_steps = max_steps
+        self.episodes = episodes
+        self.image_interval = image_interval
 
         self.policy_net = Network3D(agents=1, 
                       n_sample_points=self.env.n_sample_points, 
@@ -33,14 +50,22 @@ class DQNAgent:
                       number_actions=self.env.n_actions).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
-        self.criterion = nn.MSELoss()
         self.memory = ReplayMemory(capacity=1000)
 
+        if task != "train":
+            assert model_path is not None, "Model path cannot be none"
+            self.policy_net.load_state_dict(torch.load(model_path, map_location=self.device))
+            self.policy_net.eval()
+            self.logger.debug(f"Loaded Policy net from {model_path}")
+
     def select_action(self, state):
-        if random.random() < self.epsilon:
+        sample = random.random()
+        eps_threshold = self.min_epsilon + (self.max_epsilon - self.min_epsilon) * math.exp(-1 * self.total_steps / self.decay)
+        #print(f"Threshold {eps_threshold}, steps {self.total_steps}")
+        if sample < eps_threshold:
             return torch.tensor([[random.randint(0, self.action_dim - 1)]], device=self.device, dtype=torch.int64)
-        with torch.no_grad():
-            return self.policy_net(state).max(1).indices.view(1, 1)
+        with torch.no_grad(): 
+            return self.policy_net(state).squeeze(1).max(1).indices.view(1, 1)
 
 
     def optimize_model(self, batch_size=32):
@@ -73,19 +98,20 @@ class DQNAgent:
 
         self.optimizer.step()
 
-    def train_dqn(self, episodes=50, max_steps=1000, new_image_interval=5):
+    def train_dqn(self, new_image_interval=2):
         
-        for episode in range(episodes):
+        for episode in range(self.episodes):
             if (episode) % new_image_interval == 0:
                 self.env.get_next_image()
             state = self.env.reset()
             state = torch.tensor(state, dtype=torch.float32, device=self.device)
             
-            self.epsilon = self.initial_epsilon
             total_reward = 0
             done = False
-            total_steps = 0
-            while not done and total_steps <= max_steps:
+            self.total_steps = 0
+            closest_point = float('inf')
+            furthest_point = 0
+            while not done and self.total_steps <= self.max_steps:
                 action = self.select_action(state)
 
                 next_state, reward, done = self.env.step(action)
@@ -105,22 +131,69 @@ class DQNAgent:
                     target_net_state_dict[key] = policy_net_state_dict[key]*self.tau + target_net_state_dict[key]*(1-self.tau)
                 
                 self.target_net.load_state_dict(target_net_state_dict)
-                total_steps += 1
+                self.total_steps += 1
                 total_reward += reward
-
-
-
-            print(f"Episode {episode + 1}: Total Reward = {total_reward}, Reached Goal {done}")
+                current_distance = self.env.distance_to_truth
+                closest_point = min(closest_point, current_distance)
+                furthest_point = max(furthest_point, current_distance)
+            
+            self.logger.info(f"Episode {episode + 1}: Total Reward = {total_reward} Reached Goal {done} Closest Point = {closest_point} Furthest Point = {furthest_point}")
         torch.save(self.policy_net.state_dict(), "latest-model.pt")
 
-    def eval_dqn(self, episodes=2, steps=200):
-        for episode in range(episodes):
-            state = self.env.reset()
+    def evaluate_dqn(self):
+        """
+        Runs evaluation episodes using the trained policy network without exploration.
+        """
+        self.policy_net.eval()  # Set the network to evaluation mode
 
-            for _ in range(steps):
-                action = self.select_action(state)
+        total_rewards = []
+        success_count = 0  # Tracks how many times the agent reaches the goal
+        closest_distances = []
+        furthest_distances = []
+        with torch.no_grad():  # No gradient tracking needed for evaluation
+            for episode in range(self.episodes):
+                self.env.get_next_image()
+                state = self.env.reset()
+                state = torch.tensor(state, dtype=torch.float32, device=self.device)
 
-                next_state, _, _ = self.env.step(action)
-                state = next_state
+                total_reward = 0
+                done = False
+                self.total_steps = 0
+                closest_point = float('inf')
+                furthest_point = 0
 
-            print(f"Episode {episode + 1}: Final state = {state}")
+                while self.total_steps <= self.max_steps:
+                    action = self.policy_net(state).squeeze(1).max(1).indices.view(1, 1)  # Greedy action selection
+                    next_state, reward, _ = self.env.step(action)
+
+                    reward = torch.tensor([reward], device=self.device)
+                    next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
+
+                    state = next_state
+                    total_reward += reward
+
+                    current_distance = self.env.distance_to_truth
+                    closest_point = min(closest_point, current_distance)
+                    furthest_point = max(furthest_point, current_distance)
+
+                    self.total_steps += 1
+
+                total_rewards.append(total_reward.item())
+                closest_distances.append(closest_point)
+                furthest_distances.append(furthest_point)
+
+                if done:
+                    success_count += 1  # If the agent reaches the goal, count it as a success
+
+                print(f"Evaluation Episode {episode + 1}: Total Reward = {total_reward} | Closest Point: {closest_point} | Furthest Point: {furthest_point}")
+
+        avg_reward = sum(total_rewards) / self.episodes
+        success_rate = success_count / self.episodes * 100
+        avg_closest = sum(closest_distances) / self.episodes
+        avg_furthest = sum(furthest_distances) / self.episodes
+
+        print("\n===== Evaluation Summary =====")
+        print(f"Average Reward: {avg_reward:.2f}")
+        print(f"Success Rate: {success_rate:.2f}%")
+        print(f"Average Closest Distance: {avg_closest:.2f}")
+        print(f"Average Furthest Distance: {avg_furthest:.2f}")
