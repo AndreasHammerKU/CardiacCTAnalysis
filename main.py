@@ -106,16 +106,25 @@ def parse_args():
         help="Preload images before running (default: False)."
     )
 
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default=None,
+        help="Optional path to a pre-trained model file."
+    )
+
     return parser.parse_args()
 
 def main():
     args = parse_args()
 
     logger = setup_logger(args.debug)
-    dataLoader = DataLoader(c.DATASET_FOLDER)
-    if args.task == "train":
-        
+    if args.dataset is None:
+        dataLoader = DataLoader(c.DATASET_FOLDER)
+    else:
+        dataLoader = DataLoader(args.dataset)
     
+    if args.task == "train":
         env = MedicalImageEnvironment(logger=logger, 
                                   dataLoader=dataLoader, 
                                   image_list=['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8', 'n9', 'n10', 'n11', 'n12', 'n13', 'n14', 'n15', 'n16', 'n17', 'n18', 'n19', 'n20', 'n21', 'n22', 'n23', 'n24', 'n25', 'n26', 'n27', 'n28', 'n29', 'n30'], 
