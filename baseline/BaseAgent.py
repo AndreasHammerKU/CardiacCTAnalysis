@@ -43,7 +43,8 @@ class DQNAgent:
         self.min_epsilon = min_epsilon
         self.decay = decay
         self.agents = agents
-        self.n_actions = self.env.n_actions
+        self.n_actions = self.env.n_actions if task == "train" else self.test_env.n_actions
+        self.n_sample_points = self.env.n_sample_points if task == "train" else self.test_env.n_sample_points
         self.max_steps = max_steps
         self.episodes = episodes
         self.image_interval = image_interval
@@ -51,11 +52,11 @@ class DQNAgent:
         self.eval_steps = evaluation_steps
 
         self.policy_net = Network3D(agents=1, 
-                      n_sample_points=self.env.n_sample_points, 
-                      number_actions=self.env.n_actions).to(self.device)
+                      n_sample_points=self.n_sample_points, 
+                      number_actions=self.n_actions).to(self.device)
         self.target_net = Network3D(agents=1, 
-                      n_sample_points=self.env.n_sample_points, 
-                      number_actions=self.env.n_actions).to(self.device)
+                      n_sample_points=self.n_sample_points, 
+                      number_actions=self.n_actions).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
         self.memory = ReplayMemory(capacity=1000)

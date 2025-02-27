@@ -55,7 +55,7 @@ def main():
                                       n_sample_points=args.samples)
         
         agent = DQNAgent(test_environment=test_env,
-                         task="eval",
+                         task="test",
                          logger=logger,
                          state_dim=test_env.state_size,
                          action_dim=test_env.n_actions,
