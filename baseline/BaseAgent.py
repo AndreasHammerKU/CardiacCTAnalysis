@@ -8,7 +8,6 @@ from collections import deque
 from baseline.BaseMemory import ReplayMemory, Transition
 from baseline.BaseDQN import Network3D
 
-
 class DQNAgent:
     def __init__(self,  state_dim, 
                         action_dim,
@@ -51,10 +50,10 @@ class DQNAgent:
         self.eval_interval = evaluation_interval
         self.eval_steps = evaluation_steps
 
-        self.policy_net = Network3D(agents=1, 
+        self.policy_net = Network3D(agents=6, 
                       n_sample_points=self.n_sample_points, 
                       number_actions=self.n_actions).to(self.device)
-        self.target_net = Network3D(agents=1, 
+        self.target_net = Network3D(agents=6, 
                       n_sample_points=self.n_sample_points, 
                       number_actions=self.n_actions).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
@@ -71,9 +70,9 @@ class DQNAgent:
         sample = random.random()
         eps_threshold = self.min_epsilon + (self.max_epsilon - self.min_epsilon) * math.exp(-1 * self.total_steps / self.decay)
         if sample < eps_threshold:
-            return torch.tensor([[random.randint(0, self.action_dim - 1)]], device=self.device, dtype=torch.int64)
+            return torch.tensor([[random.randint(0, self.action_dim - 1)] for _ in range(self.agents)], device=self.device, dtype=torch.int64)
         with torch.no_grad(): 
-            return self.policy_net(state).squeeze(1).max(1).indices.view(1, 1)
+            return self.policy_net(state).squeeze().max(1).indices.view(self.agents, 1)
 
 
     def optimize_model(self, batch_size=32):
@@ -86,8 +85,11 @@ class DQNAgent:
         actions = torch.cat([a.unsqueeze(0) for a in batch.action], dim=0)
         rewards = torch.cat([r.unsqueeze(0) for r in batch.reward], dim=0)
 
-        non_done_mask = torch.tensor([not val for val in batch.done], device=self.device, dtype=torch.bool)
-        non_done_next_states = torch.cat([s for s,d in zip(batch.next_state, batch.done) if not d])
+        # Compute the average reward across agents for each transition
+        avg_rewards = rewards.mean(dim=1, keepdim=True)
+
+        non_done_mask = torch.tensor([not any(d) for d in batch.done], device=self.device, dtype=torch.bool)
+        non_done_next_states = torch.cat([s for s, d in zip(batch.next_state, batch.done) if not any(d)])
 
         state_action_values = self.policy_net(states).view(
             -1, self.agents, self.n_actions).gather(2, actions).squeeze(-1)
@@ -96,123 +98,126 @@ class DQNAgent:
 
         with torch.no_grad():
             next_states_values[non_done_mask] = self.target_net(non_done_next_states).max(2).values
-        expected_state_action_values = (next_states_values * self.gamma) + rewards
-        
+
+        # Bellman equation with averaged rewards
+        expected_state_action_values = (next_states_values * self.gamma) + avg_rewards
+
         criterion = nn.SmoothL1Loss()
         loss = criterion(state_action_values, expected_state_action_values)
         self.optimizer.zero_grad()
         loss.backward()
-
         self.optimizer.step()
 
     def train_dqn(self, new_image_interval=2):
-        
         for episode in range(self.episodes):
             if (episode) % new_image_interval == 0:
                 self.env.get_next_image()
             state = self.env.reset()
             state = torch.tensor(state, dtype=torch.float32, device=self.device)
-            
-            total_reward = 0
-            done = False
-            self.total_steps = 0
-            closest_point = float('inf')
-            furthest_point = 0
-            while not done and self.total_steps <= self.max_steps:
-                action = self.select_action(state)
 
-                next_state, reward, done = self.env.step(action)
-                reward = torch.tensor([reward], device=self.device)
+            total_reward = 0
+            done = np.zeros(len(self.env._location), dtype=bool)
+            self.total_steps = 0
+            closest_point = np.full(len(self.env._location), float('inf'))
+            furthest_point = np.zeros(len(self.env._location))
+
+            while not np.all(done) and self.total_steps <= self.max_steps:
+                
+                actions = self.select_action(state)  # Assume select_action returns actions for all agents
+
+
+                next_state, rewards, done = self.env.step(actions)
+                rewards = torch.tensor(rewards, device=self.device)
                 next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
-                
-                self.memory.push(state, action, next_state, reward, done)
-                
+
+                self.memory.push(state, actions, next_state, rewards, done)
+
                 state = next_state
 
                 self.optimize_model()
-                
+
                 target_net_state_dict = self.target_net.state_dict()
                 policy_net_state_dict = self.policy_net.state_dict()
 
                 for key in policy_net_state_dict:
-                    target_net_state_dict[key] = policy_net_state_dict[key]*self.tau + target_net_state_dict[key]*(1-self.tau)
-                
+                    target_net_state_dict[key] = policy_net_state_dict[key] * self.tau + target_net_state_dict[key] * (1 - self.tau)
+
                 self.target_net.load_state_dict(target_net_state_dict)
                 self.total_steps += 1
-                total_reward += reward.item()
-                current_distance = self.env.distance_to_truth
-                closest_point = min(closest_point, current_distance)
-                furthest_point = max(furthest_point, current_distance)
-            
-            self.logger.info(f"Episode {episode + 1}: Total Reward = {total_reward:.2f} | Reached Goal {done} | Closest Point = {closest_point:.2f} | Furthest Point = {furthest_point:.2f}")
+
+                total_reward += rewards.mean(dim=0).item()
+                current_distances = self.env.distance_to_truth
+                closest_point = np.minimum(closest_point, current_distances)
+                furthest_point = np.maximum(furthest_point, current_distances)
+
+            self.logger.info(
+                    f"Episode {episode + 1}: Total Reward = {total_reward:.2f} | "
+                    f"Reached Goal {np.all(done)} | Closest Point = {np.mean(closest_point):.2f} | "
+                    f"Furthest Point = {np.mean(furthest_point):.2f}"
+            )
+
             if (episode + 1) % self.eval_interval == 0:
                 self.logger.info(f"===== Validation Run =====")
-                self._evaluate_dqn(self.eval_env)        
+                self._evaluate_dqn(self.eval_env)      
+
         torch.save(self.policy_net.state_dict(), "latest-model.pt")
 
-    # Runs model in evaluation mode on given environment. Can be used for both validation and testing.
     def _evaluate_dqn(self, environment):
         """
         Runs evaluation episodes using the trained policy network without exploration.
         """
-        
+
         self.policy_net.eval()  # Set the network to evaluation mode
 
-        total_rewards = []
-        success_count = 0  # Tracks how many times the agent reaches the goal
-        closest_distances = []
-        furthest_distances = []
+        success_counts = np.zeros(self.agents)  # Track successful goal reaches per agent
+        closest_distances = np.full(self.agents, float('inf'))
+        furthest_distances = np.zeros(self.agents)
+
         with torch.no_grad():  # No gradient tracking needed for evaluation
             for episode in range(len(environment.image_list)):
                 environment.get_next_image()
                 state = environment.reset()
                 state = torch.tensor(state, dtype=torch.float32, device=self.device)
 
-                total_reward = 0
-                found_truth = False
+                total_rewards = 0
+                found_truth = np.zeros(self.agents, dtype=bool)
                 self.total_steps = 0
-                closest_point = float('inf')
-                furthest_point = 0
 
                 while self.total_steps <= self.eval_steps:
-                    action = self.policy_net(state).squeeze(1).max(1).indices.view(1, 1)  # Greedy action selection
-                    next_state, reward, done = environment.step(action)
-                    
-                    if done:
-                        found_truth = True
-                    
-                    reward = torch.tensor([reward], device=self.device)
+                    actions = self.policy_net(state).squeeze().max(1).indices.view(self.agents, 1)  # Greedy action selection
+                    next_state, rewards, done = environment.step(actions)
+                    found_truth = np.logical_or(found_truth, done)  # Track if any agent reached the goal
+                    rewards = torch.tensor(rewards, device=self.device)
                     next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
 
                     state = next_state
-                    total_reward += reward.item()
+                    total_rewards += rewards.mean(dim=0).item()
 
-                    current_distance = environment.distance_to_truth
-                    closest_point = min(closest_point, current_distance)
-                    furthest_point = max(furthest_point, current_distance)
+                    current_distances = environment.distance_to_truth
+                    closest_distances = np.minimum(closest_distances, current_distances)
+                    furthest_distances = np.maximum(furthest_distances, current_distances)
 
                     self.total_steps += 1
 
-                total_rewards.append(total_reward)
-                closest_distances.append(closest_point)
-                furthest_distances.append(furthest_point)
+                #success_counts += found_truth.astype(int)  # Count successes per agent
+                for agent_id in range(self.agents):
+                    self.logger.info(
+                        f"Evaluation Episode {episode + 1}, Agent {agent_id}: Total Reward = {total_rewards:.2f} | "
+                        f"Reached Goal {found_truth[agent_id]} | Closest Point = {closest_distances[agent_id]:.2f} | "
+                        f"Furthest Point = {furthest_distances[agent_id]:.2f}"
+                    )
 
-                if found_truth:
-                    success_count += 1  # If the agent reaches the goal, count it as a success
+        avg_rewards = total_rewards / len(environment.image_list)
+        success_rates = (success_counts / len(environment.image_list)) * 100
+        avg_closest = closest_distances.mean()
+        avg_furthest = furthest_distances.mean()
 
-                self.logger.info(f"Evaluation Episode {episode + 1}: Total Reward = {total_reward:.2f} | Reached Goal {done} | Closest Point = {closest_point:.2f} | Furthest Point = {furthest_point:.2f}")
-
-
-        avg_reward = sum(total_rewards) / len(environment.image_list)
-        success_rate = success_count / len(environment.image_list) * 100
-        avg_closest = sum(closest_distances) / len(environment.image_list)
-        avg_furthest = sum(furthest_distances) / len(environment.image_list)
-        self.policy_net.train() # Return to train mode
+        self.policy_net.train()  # Return to train mode
         self.logger.info("===== Evaluation Summary =====")
-        self.logger.info(f"Average Reward: {avg_reward:.2f}")
-        self.logger.info(f"Success Rate: {success_rate:.2f}%")
-        self.logger.info(f"Average Closest Distance: {avg_closest:.2f}")
-        self.logger.info(f"Average Furthest Distance: {avg_furthest:.2f}")
+        for agent_id in range(self.agents):
+            self.logger.info(f"Agent {agent_id}: Avg Reward = {avg_rewards[agent_id]:.2f} | Success Rate = {success_rates[agent_id]:.2f}%")
+        self.logger.info(f"Average Closest Distance Across Agents: {avg_closest:.2f}")
+        self.logger.info(f"Average Furthest Distance Across Agents: {avg_furthest:.2f}")
 
     def test_dqn(self):
         self._evaluate_dqn(self.test_env)
