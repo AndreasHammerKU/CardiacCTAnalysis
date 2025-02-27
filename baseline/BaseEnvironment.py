@@ -5,8 +5,7 @@ from collections import (Counter, defaultdict, deque, namedtuple)
 import random
 from utils.geometry_fitting import LeafletGeometry
 from utils.visualiser import ras_to_lps, world_to_voxel
-import copy
-import torch
+import matplotlib.pyplot as plt
 
 class MedicalImageEnvironment(gym.Env):
 
@@ -66,16 +65,16 @@ class MedicalImageEnvironment(gym.Env):
 
         landmarks =  ras_to_lps(landmarks)
         voxel_landmarks = world_to_voxel(landmarks=landmarks, affine=affine)
-        geometry = LeafletGeometry(voxel_landmarks)
-        geometry.calculate_bezier_curves()
+        self.geometry = LeafletGeometry(voxel_landmarks)
+        self.geometry.calculate_bezier_curves()
 
-        self._p0, _ground_truth, self._p2 = zip(*geometry.Control_points)
+        self._p0, _ground_truth, self._p2 = zip(*self.geometry.Control_points)
         _ground_truth = list(_ground_truth)
         for i in range(self.agents):
             _ground_truth[i] = np.rint(_ground_truth[i])
         
         self._ground_truth = _ground_truth
-        self.midpoint = [(self._p0[i] + self._p2[i]) // 2 for i in range(len(self._p0))]
+        self.midpoint = [(self._p0[i] + self._p2[i]) // 2 for i in range(self.agents)]
         
         self.logger.debug("Loaded image: {} with ground truth {} and starting point {}".format(image_name, self._ground_truth[0], self.midpoint[0]))
 
@@ -84,7 +83,7 @@ class MedicalImageEnvironment(gym.Env):
         return self.state
 
     def _get_next_episode(self):
-        self._location = [(self.midpoint[i][0], self.midpoint[i][1], self.midpoint[i][2]) for i in range(self.agents)]
+        self._location = np.array([(self.midpoint[i][0], self.midpoint[i][1], self.midpoint[i][2]) for i in range(self.agents)], dtype=np.int32)
         self.state = self._update_state()
 
     def _update_state(self):
@@ -118,21 +117,66 @@ class MedicalImageEnvironment(gym.Env):
                 self.image[x_min:x_max, y_min:y_max, z_min:z_max]
         return boxes
 
-    def step(self, action):
-        # Single agents approach
-        new_location = np.clip(self._location[0] + np.array(self.actions[action]), [0, 0, 0], np.array(self.image.shape) - 1)
-
-        reward = np.linalg.norm(self._location[0] - self._ground_truth[0]) - np.linalg.norm(new_location - self._ground_truth[0])
+    def step(self, actions):
+        # Multi-agent approach
+        action_array = np.array([self.actions[a] for a in actions])
+        new_locations = np.clip(
+            self._location + action_array,
+            [0, 0, 0],
+            np.array(self.image.shape) - 1
+        )
         
-        self._location[0] = new_location
+        rewards = np.linalg.norm(self._location - self._ground_truth, axis=1) - np.linalg.norm(new_locations - self._ground_truth, axis=1)
+        
+        self._location = new_locations
         self.state = self._update_state()
+        
+        self.distance_to_truth = np.linalg.norm(self._location - self._ground_truth, axis=1)
+        done = np.all(self._location == self._ground_truth, axis=1, keepdims=True)
+        return self.state, rewards, done
+    
+    def visualize_current_state(self, granularity=50):
+        fig = plt.figure(figsize=(8,6))
+        ax = fig.add_subplot(111, projection='3d')
 
-        self.distance_to_truth = np.linalg.norm(self._location[0] - self._ground_truth[0])
-        done = np.array_equal(self._location[0], self._ground_truth[0])
-        return self.state, reward, done
+        # Ground truth points
+        for point in self._p0:
+            ax.scatter(point[0], point[1], point[2], color='black', marker='o')
+        for point in self._p2:
+            ax.scatter(point[0], point[1], point[2], color='black', marker='o')
+        for point in self._ground_truth:
+            ax.scatter(point[0], point[1], point[2], color='black', marker='o')
+
+        for point in self._location:
+            ax.scatter(point[0], point[1], point[2], color='red', marker='o')
+
+        t_values = np.linspace(0, 1, granularity)
+        true_bezier_curves = [plotting_bezier_curve(self._p0[i], self._ground_truth[i], self._p2[i], t_values) for i in range(self.agents)]
+
+        current_bezier_cruves = [plotting_bezier_curve(self._p0[i], self._location[i], self._p2[i], t_values) for i in range(self.agents)]
+        
+        for curve in true_bezier_curves:
+            ax.plot(curve[:,0], curve[:,1], curve[:,2], color='green')
+
+        for curve in current_bezier_cruves:
+            ax.plot(curve[:,0], curve[:,1], curve[:,2], color='red')
+
+        ax.set_xlabel("X Axis")
+        ax.set_ylabel("Y Axis")
+        ax.set_zlabel("Z Axis")
+        ax.set_title("3D Scatter Plot")
+
+        # Show plot
+        plt.show()
+    
 
 def bezier_curve(p0, p1, p2, t):
     curve = np.outer((1 - t) ** 2, p0) + np.outer(2 * (1 - t) * t, p1) + np.outer(t ** 2, p2)
     return curve.astype(int)  # Convert to integer indices for accessing grid values
+
+def plotting_bezier_curve(p0, p1, p2, t):
+    curve = np.outer((1 - t) ** 2, p0) + np.outer(2 * (1 - t) * t, p1) + np.outer(t ** 2, p2)
+    return curve  # Convert to integer indices for accessing grid values
+
 
         
