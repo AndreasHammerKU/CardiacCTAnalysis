@@ -55,7 +55,6 @@ def main():
                          logger=logger,
                          state_dim=test_env.state_size,
                          action_dim=test_env.n_actions,
-                         agents=1,
                          model_path=args.model,
                          max_steps=args.steps,
                          episodes=args.episodes)

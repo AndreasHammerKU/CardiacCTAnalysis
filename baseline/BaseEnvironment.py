@@ -69,11 +69,8 @@ class MedicalImageEnvironment(gym.Env):
         self.geometry.calculate_bezier_curves()
 
         self._p0, _ground_truth, self._p2 = zip(*self.geometry.Control_points)
-        _ground_truth = list(_ground_truth)
-        for i in range(self.agents):
-            _ground_truth[i] = np.rint(_ground_truth[i])
+        self._ground_truth = np.array(_ground_truth, dtype=np.int16)
         
-        self._ground_truth = _ground_truth
         self.midpoint = [(self._p0[i] + self._p2[i]) // 2 for i in range(self.agents)]
         
         self.logger.debug("Loaded image: {} with ground truth {} and starting point {}".format(image_name, self._ground_truth[0], self.midpoint[0]))

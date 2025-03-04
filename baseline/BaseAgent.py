@@ -186,7 +186,7 @@ class DQNAgent:
                 while self.total_steps <= self.eval_steps:
                     actions = self.policy_net(state).squeeze().max(1).indices.view(self.agents, 1)  # Greedy action selection
                     next_state, rewards, done = environment.step(actions)
-                    found_truth = np.logical_or(found_truth, done)  # Track if any agent reached the goal
+                    found_truth = np.logical_or(found_truth, done.reshape((6)))  # Track if any agent reached the goal
                     rewards = torch.tensor(rewards, device=self.device)
                     next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
 
@@ -200,12 +200,11 @@ class DQNAgent:
                     self.total_steps += 1
 
                 #success_counts += found_truth.astype(int)  # Count successes per agent
-                for agent_id in range(self.agents):
-                    self.logger.info(
-                        f"Evaluation Episode {episode + 1}, Agent {agent_id}: Total Reward = {total_rewards:.2f} | "
-                        f"Reached Goal {found_truth[agent_id]} | Closest Point = {closest_distances[agent_id]:.2f} | "
-                        f"Furthest Point = {furthest_distances[agent_id]:.2f}"
-                    )
+                self.logger.info(
+                    f"Evaluation Episode {episode + 1}: Total Reward = {total_rewards:.2f} | "
+                    f"Reached Goal {found_truth} | Closest Point = {closest_distances} | "
+                    f"Furthest Point = {furthest_distances}"
+                )
 
         avg_rewards = total_rewards / len(environment.image_list)
         success_rates = (success_counts / len(environment.image_list)) * 100
@@ -214,8 +213,6 @@ class DQNAgent:
 
         self.policy_net.train()  # Return to train mode
         self.logger.info("===== Evaluation Summary =====")
-        for agent_id in range(self.agents):
-            self.logger.info(f"Agent {agent_id}: Avg Reward = {avg_rewards[agent_id]:.2f} | Success Rate = {success_rates[agent_id]:.2f}%")
         self.logger.info(f"Average Closest Distance Across Agents: {avg_closest:.2f}")
         self.logger.info(f"Average Furthest Distance Across Agents: {avg_furthest:.2f}")
 
