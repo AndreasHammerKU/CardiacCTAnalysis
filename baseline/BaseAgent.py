@@ -152,8 +152,8 @@ class DQNAgent:
 
             self.logger.info(
                     f"Episode {episode + 1}: Total Reward = {total_reward:.2f} | "
-                    f"Reached Goal {np.all(done)} | Closest Point = {np.mean(closest_point):.2f} | "
-                    f"Furthest Point = {np.mean(furthest_point):.2f}"
+                    f"All Reached Goal {np.all(done)} | Avg Closest Point = {np.mean(closest_point):.2f} | "
+                    f"Avg Furthest Point = {np.mean(furthest_point):.2f}"
             )
 
             if (episode + 1) % self.eval_interval == 0:
@@ -169,9 +169,6 @@ class DQNAgent:
 
         self.policy_net.eval()  # Set the network to evaluation mode
 
-        success_counts = np.zeros(self.agents)  # Track successful goal reaches per agent
-        closest_distances = np.full(self.agents, float('inf'))
-        furthest_distances = np.zeros(self.agents)
 
         with torch.no_grad():  # No gradient tracking needed for evaluation
             for episode in range(len(environment.image_list)):
@@ -179,6 +176,8 @@ class DQNAgent:
                 state = environment.reset()
                 state = torch.tensor(state, dtype=torch.float32, device=self.device)
 
+                closest_distances = np.full(self.agents, float('inf'))
+                furthest_distances = np.zeros(self.agents)
                 total_rewards = 0
                 found_truth = np.zeros(self.agents, dtype=bool)
                 self.total_steps = 0
@@ -206,8 +205,6 @@ class DQNAgent:
                     f"Furthest Point = {furthest_distances}"
                 )
 
-        avg_rewards = total_rewards / len(environment.image_list)
-        success_rates = (success_counts / len(environment.image_list)) * 100
         avg_closest = closest_distances.mean()
         avg_furthest = furthest_distances.mean()
 
