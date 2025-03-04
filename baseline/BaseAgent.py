@@ -66,13 +66,13 @@ class DQNAgent:
             self.policy_net.eval()
             self.logger.debug(f"Loaded Policy net from {model_path}")
 
-    def select_action(self, state):
+    def select_action(self, state, location):
         sample = random.random()
         eps_threshold = self.min_epsilon + (self.max_epsilon - self.min_epsilon) * math.exp(-1 * self.total_steps / self.decay)
         if sample < eps_threshold:
             return torch.tensor([[random.randint(0, self.action_dim - 1)] for _ in range(self.agents)], device=self.device, dtype=torch.int64)
         with torch.no_grad(): 
-            return self.policy_net(state).squeeze().max(1).indices.view(self.agents, 1)
+            return self.policy_net(state, location).squeeze().max(1).indices.view(self.agents, 1)
 
 
     def optimize_model(self, batch_size=32):
@@ -82,22 +82,26 @@ class DQNAgent:
         batch = Transition(*zip(*transitions))
 
         states = torch.cat([s.unsqueeze(0) for s in batch.state], dim=0)
+        next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state], dim=0)
+        locations = torch.cat([l.unsqueeze(0) for l in batch.location], dim=0)
+        next_locations = torch.cat([l.unsqueeze(0) for l in batch.next_location], dim=0)
         actions = torch.cat([a.unsqueeze(0) for a in batch.action], dim=0)
         rewards = torch.cat([r.unsqueeze(0) for r in batch.reward], dim=0)
-
+        
         # Compute the average reward across agents for each transition
         avg_rewards = rewards.mean(dim=1, keepdim=True)
 
-        non_done_mask = torch.tensor([not any(d) for d in batch.done], device=self.device, dtype=torch.bool)
-        non_done_next_states = torch.cat([s for s, d in zip(batch.next_state, batch.done) if not any(d)])
+        #non_done_mask = torch.tensor([not any(d) for d in batch.done], device=self.device, dtype=torch.bool)
+        #non_done_next_states = torch.cat([s for s, d in zip(batch.next_state, batch.done) if not any(d)])
+        #non_done_next_locations = torch.cat([l for l, d in zip(batch.next_location, batch.done) if not any(d)])
 
-        state_action_values = self.policy_net(states).view(
+        state_action_values = self.policy_net(states, locations).view(
             -1, self.agents, self.n_actions).gather(2, actions).squeeze(-1)
 
-        next_states_values = torch.zeros((batch_size, self.agents), device=self.device)
+        #next_states_values = torch.zeros((batch_size, self.agents), device=self.device)
 
         with torch.no_grad():
-            next_states_values[non_done_mask] = self.target_net(non_done_next_states).max(2).values
+            next_states_values = self.target_net(next_states, next_locations).max(2).values
 
         # Bellman equation with averaged rewards
         expected_state_action_values = (next_states_values * self.gamma) + avg_rewards
@@ -114,25 +118,30 @@ class DQNAgent:
                 self.env.get_next_image()
             state = self.env.reset()
             state = torch.tensor(state, dtype=torch.float32, device=self.device)
+            location = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
 
             total_reward = 0
-            done = np.zeros(len(self.env._location), dtype=bool)
+            done = np.zeros(len(location), dtype=bool)
             self.total_steps = 0
             closest_point = np.full(len(self.env._location), float('inf'))
             furthest_point = np.zeros(len(self.env._location))
 
             while not np.all(done) and self.total_steps <= self.max_steps:
-                
-                actions = self.select_action(state)  # Assume select_action returns actions for all agents
+                centroid = location.mean(dim=0, keepdim=True)
+                normalized_locations = location - centroid
+                actions = self.select_action(state, normalized_locations)  # Assume select_action returns actions for all agents
 
 
-                next_state, rewards, done = self.env.step(actions)
+                next_state, next_location, rewards, done = self.env.step(actions)
+
                 rewards = torch.tensor(rewards, device=self.device)
                 next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
+                next_location = torch.tensor(next_location, dtype=torch.float32, device=self.device)
 
-                self.memory.push(state, actions, next_state, rewards, done)
+                self.memory.push(state, location, actions, next_state, next_location, rewards, done)
 
                 state = next_state
+                location = next_location
 
                 self.optimize_model()
 
@@ -175,6 +184,7 @@ class DQNAgent:
                 environment.get_next_image()
                 state = environment.reset()
                 state = torch.tensor(state, dtype=torch.float32, device=self.device)
+                location = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
 
                 closest_distances = np.full(self.agents, float('inf'))
                 furthest_distances = np.zeros(self.agents)
@@ -183,13 +193,19 @@ class DQNAgent:
                 self.total_steps = 0
 
                 while self.total_steps <= self.eval_steps:
-                    actions = self.policy_net(state).squeeze().max(1).indices.view(self.agents, 1)  # Greedy action selection
-                    next_state, rewards, done = environment.step(actions)
+                    centroid = location.mean(dim=0, keepdim=True)
+                    normalized_locations = location - centroid
+
+                    actions = self.policy_net(state, normalized_locations).squeeze().max(1).indices.view(self.agents, 1)  # Greedy action selection
+                    next_state, next_location, rewards, done = environment.step(actions)
                     found_truth = np.logical_or(found_truth, done.reshape((6)))  # Track if any agent reached the goal
+                    
+                    next_location = torch.tensor(next_location, dtype=torch.float32, device=self.device)
                     rewards = torch.tensor(rewards, device=self.device)
                     next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
 
                     state = next_state
+                    location = next_location
                     total_rewards += rewards.mean(dim=0).item()
 
                     current_distances = environment.distance_to_truth

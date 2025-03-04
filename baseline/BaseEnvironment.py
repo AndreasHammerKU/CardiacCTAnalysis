@@ -11,8 +11,7 @@ class MedicalImageEnvironment(gym.Env):
 
     def __init__(self, task="train", 
                        dataLoader=None, 
-                       n_sample_points=5, 
-                       memory_size=28,
+                       n_sample_points=5,
                        vision_size=(21, 21, 21), 
                        agents=6, 
                        image_list=None, 
@@ -130,7 +129,7 @@ class MedicalImageEnvironment(gym.Env):
         
         self.distance_to_truth = np.linalg.norm(self._location - self._ground_truth, axis=1)
         done = np.all(self._location == self._ground_truth, axis=1, keepdims=True)
-        return self.state, rewards, done
+        return self.state, self._location, rewards, done
     
     def visualize_current_state(self, granularity=50):
         fig = plt.figure(figsize=(8,6))
