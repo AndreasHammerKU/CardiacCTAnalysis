@@ -42,7 +42,7 @@ class Network3D(nn.Module):
         
         # Modify fc2 to accept location input
         self.fc2 = nn.ModuleList(
-            [nn.Linear(in_features=128 + 32, out_features=64) for _ in range(self.agents)])
+            [nn.Linear(in_features=128, out_features=64) for _ in range(self.agents)])
         self.prelu5 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         self.fc3 = nn.ModuleList(
@@ -90,7 +90,7 @@ class Network3D(nn.Module):
             x = self.prelu4[i](x)
 
             # Concatenate location before second FC layer
-            x = torch.cat([x, global_location], dim=-1)
+            #x = torch.cat([x, global_location], dim=-1)
             
             # Pass through modified second FC layer
             x = self.fc2[i](x)

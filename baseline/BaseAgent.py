@@ -70,8 +70,10 @@ class DQNAgent:
         sample = random.random()
         eps_threshold = self.min_epsilon + (self.max_epsilon - self.min_epsilon) * math.exp(-1 * self.total_steps / self.decay)
         if sample < eps_threshold:
+            #print("Random Choice")
             return torch.tensor([[random.randint(0, self.action_dim - 1)] for _ in range(self.agents)], device=self.device, dtype=torch.int64)
-        with torch.no_grad(): 
+        with torch.no_grad():
+            #print("Optimal Choice")
             return self.policy_net(state, location).squeeze().max(1).indices.view(self.agents, 1)
 
 
