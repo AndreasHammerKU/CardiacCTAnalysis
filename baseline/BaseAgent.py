@@ -18,7 +18,7 @@ class DQNAgent:
                         task="train", 
                         model_path=None, 
                         lr=0.001, 
-                        gamma=0.99, 
+                        gamma=0.90, 
                         max_epsilon=1.0, 
                         min_epsilon=0.01, 
                         decay=250, 
@@ -87,9 +87,9 @@ class DQNAgent:
         next_locations = torch.cat([l.unsqueeze(0) for l in batch.next_location], dim=0)
         actions = torch.cat([a.unsqueeze(0) for a in batch.action], dim=0)
         rewards = torch.cat([r.unsqueeze(0) for r in batch.reward], dim=0)
-        
+
         # Compute the average reward across agents for each transition
-        avg_rewards = rewards.mean(dim=1, keepdim=True)
+        rewards += torch.mean(rewards, axis=1).unsqueeze(1).repeat(1, rewards.shape[1])
 
         #non_done_mask = torch.tensor([not any(d) for d in batch.done], device=self.device, dtype=torch.bool)
         #non_done_next_states = torch.cat([s for s, d in zip(batch.next_state, batch.done) if not any(d)])
@@ -104,7 +104,10 @@ class DQNAgent:
             next_states_values = self.target_net(next_states, next_locations).max(2).values
 
         # Bellman equation with averaged rewards
-        expected_state_action_values = (next_states_values * self.gamma) + avg_rewards
+        #print(next_states_values.shape)
+        #print(rewards.shape)
+        #print(self.gamma)
+        expected_state_action_values = (next_states_values * self.gamma) + rewards
 
         criterion = nn.SmoothL1Loss()
         loss = criterion(state_action_values, expected_state_action_values)
@@ -153,7 +156,6 @@ class DQNAgent:
 
                 self.target_net.load_state_dict(target_net_state_dict)
                 self.total_steps += 1
-
                 total_reward += rewards.mean(dim=0).item()
                 current_distances = self.env.distance_to_truth
                 closest_point = np.minimum(closest_point, current_distances)
