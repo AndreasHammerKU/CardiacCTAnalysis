@@ -97,6 +97,7 @@ class DQNAgent:
         #non_done_next_states = torch.cat([s for s, d in zip(batch.next_state, batch.done) if not any(d)])
         #non_done_next_locations = torch.cat([l for l, d in zip(batch.next_location, batch.done) if not any(d)])
 
+        #print(locations.shape)
         state_action_values = self.policy_net(states, locations).view(
             -1, self.agents, self.n_actions).gather(2, actions).squeeze(-1)
 
@@ -123,7 +124,11 @@ class DQNAgent:
                 self.env.get_next_image()
             state = self.env.reset()
             state = torch.tensor(state, dtype=torch.float32, device=self.device)
+            
+            # Get normalized locations of each agent
             location = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
+            centroid = location.mean(dim=0, keepdim=True)
+            normalized_locations = location - centroid
 
             total_reward = 0
             done = np.zeros(len(location), dtype=bool)
@@ -132,21 +137,21 @@ class DQNAgent:
             furthest_point = np.zeros(len(self.env._location))
 
             while not np.all(done) and self.total_steps <= self.max_steps:
-                centroid = location.mean(dim=0, keepdim=True)
-                normalized_locations = location - centroid
                 actions = self.select_action(state, normalized_locations)  # Assume select_action returns actions for all agents
-
 
                 next_state, next_location, rewards, done = self.env.step(actions)
 
                 rewards = torch.tensor(rewards, device=self.device)
                 next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
                 next_location = torch.tensor(next_location, dtype=torch.float32, device=self.device)
+                next_centroid = location.mean(dim=0, keepdim=True)
+                next_normalized_locations = next_location - next_centroid
 
-                self.memory.push(state, location, actions, next_state, next_location, rewards, done)
+                self.memory.push(state, normalized_locations, actions, next_state, next_normalized_locations, rewards, done)
 
                 state = next_state
-                location = next_location
+
+                normalized_locations = next_normalized_locations
 
                 self.optimize_model()
 
@@ -199,8 +204,11 @@ class DQNAgent:
                 while self.total_steps <= self.eval_steps:
                     centroid = location.mean(dim=0, keepdim=True)
                     normalized_locations = location - centroid
+                    print("norm location: ", normalized_locations)
+                    absolute_location = np.linalg.norm(normalized_locations, axis=1)
+                    print("absolute location: ", absolute_location)
 
-                    actions = self.policy_net(state, normalized_locations).squeeze().max(1).indices.view(self.agents, 1)  # Greedy action selection
+                    actions = self.policy_net(state, absolute_location).squeeze().max(1).indices.view(self.agents, 1)  # Greedy action selection
                     next_state, next_location, rewards, done = environment.step(actions)
                     found_truth = np.logical_or(found_truth, done.reshape((6)))  # Track if any agent reached the goal
                     

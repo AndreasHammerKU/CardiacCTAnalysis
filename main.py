@@ -41,6 +41,9 @@ def main():
                          image_interval=args.image_interval)
     
         agent.train_dqn()
+        train_env.visualize_current_state()
+        eval_env.visualize_current_state()
+
 
     if args.task == "test":
         # Test split
@@ -60,6 +63,7 @@ def main():
                          episodes=args.episodes)
         
         agent.test_dqn()
+        test_env.visualize_current_state()
 
 if __name__ == "__main__":
     main()
