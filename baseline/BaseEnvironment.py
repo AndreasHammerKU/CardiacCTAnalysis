@@ -10,10 +10,10 @@ import matplotlib.pyplot as plt
 class MedicalImageEnvironment(gym.Env):
 
     def __init__(self, task="train", 
-                       dataLoader=None, 
-                       n_sample_points=5,
-                       vision_size=(21, 21, 21), 
-                       agents=6, 
+                       dataLoader=None,
+                       vision_size=(45, 45, 45), 
+                       agents=6,
+                       frame_history=4,
                        image_list=None, 
                        logger=None, 
                        preload_images=False):
@@ -23,6 +23,7 @@ class MedicalImageEnvironment(gym.Env):
         self.logger = logger
         self.dataLoader = dataLoader
         self.image_list = image_list
+        self.frame_history = frame_history
 
         if preload_images:
             self.dataLoader.preload_images(image_list)
@@ -34,8 +35,7 @@ class MedicalImageEnvironment(gym.Env):
         self.n_actions = len(self.actions)
         self.vision_size = vision_size
         
-        self.n_sample_points = n_sample_points
-        self.t_values = np.linspace(0,1,n_sample_points)
+        self.t_value = 0.5 # Place on box around the middle point in the curve
 
         self.width, self.height, self.depth = vision_size
         # Box must be odd
@@ -85,32 +85,29 @@ class MedicalImageEnvironment(gym.Env):
     def _update_state(self):
         self._sample_points = np.zeros((
             self.agents,
-            self.n_sample_points,
             self.dims
         ), dtype=np.int16)
         for i in range(self.agents):
-            self._sample_points[i, :, :] = bezier_curve(self._p0[i], self._location[i], self._p2[i], self.t_values)
+            self._sample_points[i, :] = bezier_curve(self._p0[i], self._location[i], self._p2[i], self.t_values)
         half_width, half_height, half_depth = self.width // 2, self.height // 2, self.depth // 2 
-        boxes = np.zeros((self.agents, 
-                               self.n_sample_points, 
+        boxes = np.zeros((self.agents,
                                self.width, 
                                self.height, 
                                self.depth), dtype=self.image.dtype)
-        for i in range(self.agents):
-            for o, (x,y,z) in enumerate(self._sample_points[i]):
-                # Compute valid min/max coordinates within array bounds
-                x_min, x_max = max(x - half_width, 0), min(x + half_width + 1, self.image.shape[0])
-                y_min, y_max = max(y - half_height, 0), min(y + half_height + 1, self.image.shape[1])
-                z_min, z_max = max(z - half_depth, 0), min(z + half_depth + 1, self.image.shape[2])
+        for (x,y,z) in self._sample_points:
+            # Compute valid min/max coordinates within array bounds
+            x_min, x_max = max(x - half_width, 0), min(x + half_width + 1, self.image.shape[0])
+            y_min, y_max = max(y - half_height, 0), min(y + half_height + 1, self.image.shape[1])
+            z_min, z_max = max(z - half_depth, 0), min(z + half_depth + 1, self.image.shape[2])
 
-                # Compute corresponding indices in the zero-padded array
-                pad_x_min, pad_x_max = half_width - (x - x_min), half_width + (x_max - x)
-                pad_y_min, pad_y_max = half_height - (y - y_min), half_height + (y_max - y)
-                pad_z_min, pad_z_max = half_depth - (z - z_min), half_depth + (z_max - z)
+            # Compute corresponding indices in the zero-padded array
+            pad_x_min, pad_x_max = half_width - (x - x_min), half_width + (x_max - x)
+            pad_y_min, pad_y_max = half_height - (y - y_min), half_height + (y_max - y)
+            pad_z_min, pad_z_max = half_depth - (z - z_min), half_depth + (z_max - z)
     
-                # Copy the valid region from the image to the preallocated box
-                boxes[i, o, pad_x_min:pad_x_max, pad_y_min:pad_y_max, pad_z_min:pad_z_max] = \
-                self.image[x_min:x_max, y_min:y_max, z_min:z_max]
+            # Copy the valid region from the image to the preallocated box
+            boxes[i, pad_x_min:pad_x_max, pad_y_min:pad_y_max, pad_z_min:pad_z_max] = \
+            self.image[x_min:x_max, y_min:y_max, z_min:z_max]
         return boxes
 
     def step(self, actions):
@@ -168,7 +165,7 @@ class MedicalImageEnvironment(gym.Env):
     
 
 def bezier_curve(p0, p1, p2, t):
-    curve = np.outer((1 - t) ** 2, p0) + np.outer(2 * (1 - t) * t, p1) + np.outer(t ** 2, p2)
+    curve = ((1 - t) ** 2) * p0 + (2 * (1 - t) * t) * p1 + (t ** 2) * p2
     return curve.astype(int)  # Convert to integer indices for accessing grid values
 
 def plotting_bezier_curve(p0, p1, p2, t):
