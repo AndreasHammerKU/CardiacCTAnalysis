@@ -127,8 +127,7 @@ class DQNAgent:
             
             # Get normalized locations of each agent
             location = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
-            centroid = location.mean(dim=0, keepdim=True)
-            normalized_locations = location - centroid
+            normalized_locations = location - location.mean(dim=0, keepdim=True)
 
             total_reward = 0
             done = np.zeros(len(location), dtype=bool)
@@ -143,9 +142,9 @@ class DQNAgent:
 
                 rewards = torch.tensor(rewards, device=self.device)
                 next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
+                
                 next_location = torch.tensor(next_location, dtype=torch.float32, device=self.device)
-                next_centroid = location.mean(dim=0, keepdim=True)
-                next_normalized_locations = next_location - next_centroid
+                next_normalized_locations = next_location - location.mean(dim=0, keepdim=True)
 
                 self.memory.push(state, normalized_locations, actions, next_state, next_normalized_locations, rewards, done)
 
@@ -194,6 +193,7 @@ class DQNAgent:
                 state = environment.reset()
                 state = torch.tensor(state, dtype=torch.float32, device=self.device)
                 location = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
+                normalized_locations = location - location.mean(dim=0, keepdim=True)
 
                 closest_distances = np.full(self.agents, float('inf'))
                 furthest_distances = np.zeros(self.agents)
@@ -202,22 +202,21 @@ class DQNAgent:
                 self.total_steps = 0
 
                 while self.total_steps <= self.eval_steps:
-                    centroid = location.mean(dim=0, keepdim=True)
-                    normalized_locations = location - centroid
-                    print("norm location: ", normalized_locations)
-                    absolute_location = np.linalg.norm(normalized_locations, axis=1)
-                    print("absolute location: ", absolute_location)
-
-                    actions = self.policy_net(state, absolute_location).squeeze().max(1).indices.view(self.agents, 1)  # Greedy action selection
+                    actions = self.policy_net(state, normalized_locations).squeeze().max(1).indices.view(self.agents, 1)  # Greedy action selection
+                    
                     next_state, next_location, rewards, done = environment.step(actions)
+                    
                     found_truth = np.logical_or(found_truth, done.reshape((6)))  # Track if any agent reached the goal
                     
-                    next_location = torch.tensor(next_location, dtype=torch.float32, device=self.device)
+                    
                     rewards = torch.tensor(rewards, device=self.device)
                     next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
 
+                    next_location = torch.tensor(next_location, dtype=torch.float32, device=self.device)
+                    next_normalized_locations = next_location - next_location.mean(dim=0, keepdim=True)
+
                     state = next_state
-                    location = next_location
+                    normalized_locations = next_normalized_locations
                     total_rewards += rewards.mean(dim=0).item()
 
                     current_distances = environment.distance_to_truth
