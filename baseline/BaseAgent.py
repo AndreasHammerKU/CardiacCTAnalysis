@@ -69,12 +69,9 @@ class DQNAgent:
     def select_action(self, state, location):
         sample = random.random()
         eps_threshold = self.min_epsilon + (self.max_epsilon - self.min_epsilon) * math.exp(-1 * self.total_steps / self.decay)
-        print(eps_threshold)
         if sample < eps_threshold:
-            #print("Random Choice")
             return torch.tensor([[random.randint(0, self.action_dim - 1)] for _ in range(self.agents)], device=self.device, dtype=torch.int64)
         with torch.no_grad():
-            #print("Optimal Choice")
             return self.policy_net(state, location).squeeze().max(1).indices.view(self.agents, 1)
 
 
@@ -167,7 +164,7 @@ class DQNAgent:
                 current_distances = self.env.distance_to_truth
                 closest_point = np.minimum(closest_point, current_distances)
                 furthest_point = np.maximum(furthest_point, current_distances)
-            np.mean(current_distances)
+
             self.logger.info(
                     f"Episode {episode + 1}: Total Reward = {total_reward:.2f} | Final Avg Distance {np.mean(current_distances):.2f} | "
                     f"All Reached Goal {np.all(done)} | Avg Closest Point = {np.mean(closest_point):.2f} | "
