@@ -125,7 +125,7 @@ class DQNAgent:
             
             # Get normalized locations of each agent
             location = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
-            normalized_locations = location - location.mean(dim=0, keepdim=True)
+            normalized_locations = torch.abs(location - location.mean(dim=0, keepdim=True))
 
             total_reward = 0
             done = np.zeros(len(location), dtype=bool)
@@ -142,7 +142,7 @@ class DQNAgent:
                 next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
                 
                 next_location = torch.tensor(next_location, dtype=torch.float32, device=self.device)
-                next_normalized_locations = next_location - location.mean(dim=0, keepdim=True)
+                next_normalized_locations = torch.abs(next_location - location.mean(dim=0, keepdim=True))
 
                 self.memory.push(state, normalized_locations, actions, next_state, next_normalized_locations, rewards, done)
 
@@ -191,7 +191,7 @@ class DQNAgent:
                 state = environment.reset()
                 state = torch.tensor(state, dtype=torch.float32, device=self.device)
                 location = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
-                normalized_locations = location - location.mean(dim=0, keepdim=True)
+                normalized_locations = torch.abs(location - location.mean(dim=0, keepdim=True))
 
                 closest_distances = np.full(self.agents, float('inf'))
                 furthest_distances = np.zeros(self.agents)
@@ -211,7 +211,7 @@ class DQNAgent:
                     next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
 
                     next_location = torch.tensor(next_location, dtype=torch.float32, device=self.device)
-                    next_normalized_locations = next_location - next_location.mean(dim=0, keepdim=True)
+                    next_normalized_locations = torch.abs(next_location - next_location.mean(dim=0, keepdim=True))
 
                     state = next_state
                     normalized_locations = next_normalized_locations
