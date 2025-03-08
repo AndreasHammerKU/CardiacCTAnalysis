@@ -129,10 +129,6 @@ class MedicalImageEnvironment(gym.Env):
         
         self.distance_to_truth = np.linalg.norm(self._location - self._ground_truth, axis=1)
         done = np.all(self._location == self._ground_truth, axis=1, keepdims=True)
-        
-        for i in range(self.agents):
-            if done[i]:
-                self.state[i] = None
 
         return self.state, self._location, rewards, done
     
