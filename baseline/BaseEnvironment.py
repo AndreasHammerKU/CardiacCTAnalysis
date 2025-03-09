@@ -42,7 +42,7 @@ class MedicalImageEnvironment(gym.Env):
         assert self.width % 2 == 1 and self.height % 2 == 1 and self.depth % 2 == 1
 
         self.dims = len(vision_size)
-        self.state_size = (self.agents, self.n_sample_points, self.width, self.height, self.depth)
+        self.state_size = (self.agents, self.width, self.height, self.depth)
 
         if task != "train":
             self.current_image = 0
@@ -88,7 +88,7 @@ class MedicalImageEnvironment(gym.Env):
             self.dims
         ), dtype=np.int16)
         for i in range(self.agents):
-            self._sample_points[i, :] = bezier_curve(self._p0[i], self._location[i], self._p2[i], self.t_values)
+            self._sample_points[i, :] = bezier_curve(self._p0[i], self._location[i], self._p2[i], self.t_value)
         half_width, half_height, half_depth = self.width // 2, self.height // 2, self.depth // 2 
         boxes = np.zeros((self.agents,
                                self.width, 

@@ -43,18 +43,18 @@ class DQNAgent:
         self.decay = decay
         self.agents = agents
         self.n_actions = self.env.n_actions if task == "train" else self.test_env.n_actions
-        self.n_sample_points = self.env.n_sample_points if task == "train" else self.test_env.n_sample_points
         self.max_steps = max_steps
         self.episodes = episodes
+        self.frame_history = 4
         self.image_interval = image_interval
         self.eval_interval = evaluation_interval
         self.eval_steps = evaluation_steps
 
         self.policy_net = Network3D(agents=6, 
-                      n_sample_points=self.n_sample_points, 
+                      frame_history=self.frame_history, 
                       number_actions=self.n_actions).to(self.device)
         self.target_net = Network3D(agents=6, 
-                      n_sample_points=self.n_sample_points, 
+                      frame_history=self.frame_history, 
                       number_actions=self.n_actions).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
@@ -201,7 +201,7 @@ class DQNAgent:
                     actions = self.policy_net(state, normalized_locations).squeeze().max(1).indices.view(self.agents, 1)  # Greedy action selection
                     
                     next_state, next_location, rewards, done = environment.step(actions)
-                    
+                    print(next_state.shape)
                     found_truth = np.logical_or(found_truth, done.reshape((6)))  # Track if any agent reached the goal
                     
                     
