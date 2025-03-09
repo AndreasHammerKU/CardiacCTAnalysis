@@ -14,29 +14,34 @@ class Network3D(nn.Module):
 
         self.conv0 = nn.Conv3d(
             in_channels=n_sample_points,
-            out_channels=16,
-            kernel_size=(3, 3, 3),
+            out_channels=32,
+            kernel_size=(5, 5, 5),
             padding=2,
-            stride=2)
+            stride=1)
         self.maxpool0 = nn.MaxPool3d(kernel_size=(2, 2, 2))
         self.prelu0 = nn.PReLU()
         self.conv1 = nn.Conv3d(
-            in_channels=16,
-            out_channels=32,
-            kernel_size=(3, 3, 3),
-            padding=2)
+            in_channels=32,
+            out_channels=64,
+            kernel_size=(4, 4, 4),
+            padding=1)
         self.maxpool1 = nn.MaxPool3d(kernel_size=(2, 2, 2))
         self.prelu1 = nn.PReLU()
         self.conv2 = nn.Conv3d(
-            in_channels=32,
-            out_channels=32,
+            in_channels=64,
+            out_channels=64,
             kernel_size=(3, 3, 3),
-            padding=2)
+            padding=1)
         self.maxpool2 = nn.MaxPool3d(kernel_size=(2, 2, 2))
         self.prelu2 = nn.PReLU()
+        self.conv3 = nn.Conv3d(
+            in_channels=64,
+            out_channels=64,
+            kernel_size=(3, 3, 3),
+            padding=1)
 
         self.fc1 = nn.ModuleList(
-            [nn.Linear(in_features=864, out_features=128) for _ in range(self.agents)])
+            [nn.Linear(in_features=512, out_features=128) for _ in range(self.agents)])
         self.prelu4 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         
@@ -84,7 +89,8 @@ class Network3D(nn.Module):
             x = self.conv2(x)
             x = self.prelu2(x)
             x = self.maxpool2(x)
-            x = x.view(-1, 864)
+            x = self.conv3(x)
+            x = x.view(-1, 512)
 
             # Pass through first FC layer
             x = self.fc1[i](x)
