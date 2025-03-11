@@ -36,6 +36,7 @@ def main():
                          state_dim=train_env.state_size,
                          action_dim=train_env.n_actions,
                          model_path=args.model,
+                         model_type=args.model_type,
                          max_steps=args.steps,
                          episodes=args.episodes,
                          image_interval=args.image_interval)
@@ -59,6 +60,7 @@ def main():
                          state_dim=test_env.state_size,
                          action_dim=test_env.n_actions,
                          model_path=args.model,
+                         model_type=args.model_type,
                          max_steps=args.steps,
                          episodes=args.episodes)
         

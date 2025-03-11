@@ -6,7 +6,7 @@ import numpy as np
 from scipy.special import binom
 from collections import deque
 from baseline.BaseMemory import ReplayMemory, Transition
-from baseline.BaseDQN import Network3D
+from baseline.BaseDQN import Network3D, CommNet
 
 class DQNAgent:
     def __init__(self,  state_dim, 
@@ -16,7 +16,8 @@ class DQNAgent:
                         test_environment=None, 
                         logger=None, 
                         task="train", 
-                        model_path=None, 
+                        model_path=None,
+                        model_type="Network3D",
                         lr=0.001, 
                         gamma=0.90, 
                         max_epsilon=1.0, 
@@ -49,13 +50,22 @@ class DQNAgent:
         self.image_interval = image_interval
         self.eval_interval = evaluation_interval
         self.eval_steps = evaluation_steps
+        self.model_type = model_type
+        if model_type == "Network3D":
+            self.policy_net = Network3D(agents=6, 
+                      n_sample_points=self.n_sample_points, 
+                      number_actions=self.n_actions).to(self.device)
+            self.target_net = Network3D(agents=6, 
+                      n_sample_points=self.n_sample_points, 
+                      number_actions=self.n_actions).to(self.device)
+        elif model_type == "CommNet":
+            self.policy_net = CommNet(agents=6, 
+                      n_sample_points=self.n_sample_points, 
+                      number_actions=self.n_actions).to(self.device)
+            self.target_net = CommNet(agents=6, 
+                      n_sample_points=self.n_sample_points, 
+                      number_actions=self.n_actions).to(self.device)
 
-        self.policy_net = Network3D(agents=6, 
-                      n_sample_points=self.n_sample_points, 
-                      number_actions=self.n_actions).to(self.device)
-        self.target_net = Network3D(agents=6, 
-                      n_sample_points=self.n_sample_points, 
-                      number_actions=self.n_actions).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
         self.memory = ReplayMemory(capacity=1000)
@@ -173,7 +183,7 @@ class DQNAgent:
                 self.logger.info(f"===== Validation Run =====")
                 self._evaluate_dqn(self.eval_env)      
 
-        torch.save(self.policy_net.state_dict(), "latest-model.pt")
+        torch.save(self.policy_net.state_dict(), f"latest-model-{self.model_type}.pt")
 
     def _evaluate_dqn(self, environment):
         """

@@ -64,4 +64,11 @@ def parse_args():
         help="Optional path to a pre-trained model file."
     )
 
+    parser.add_argument(
+        "--model_type",
+        type=str,
+        default="Network3D",
+        help="Network Type."
+    )
+
     return parser.parse_args()
