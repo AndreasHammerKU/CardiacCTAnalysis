@@ -31,6 +31,12 @@ def parse_args():
     )
 
     parser.add_argument(
+        "-a", "--attention",
+        action="store_true",
+        help="Enables attention in model"
+    )
+
+    parser.add_argument(
         "--steps", "-s",
         type=int,
         default=1000,

@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 class Network3D(nn.Module):
-    def __init__(self, agents, n_sample_points, number_actions, location_dim=3, xavier=True):
+    def __init__(self, agents, n_sample_points, number_actions, location_dim=3, xavier=True, attention=False):
         super(Network3D, self).__init__()
 
         self.agents = agents

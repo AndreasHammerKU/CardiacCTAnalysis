@@ -18,6 +18,7 @@ class DQNAgent:
                         task="train", 
                         model_path=None,
                         model_type="Network3D",
+                        attention=False,
                         lr=0.001, 
                         gamma=0.90, 
                         max_epsilon=1.0, 
@@ -51,13 +52,16 @@ class DQNAgent:
         self.eval_interval = evaluation_interval
         self.eval_steps = evaluation_steps
         self.model_type = model_type
+        self.attention = attention
         if model_type == "Network3D":
             self.policy_net = Network3D(agents=6, 
                       n_sample_points=self.n_sample_points, 
-                      number_actions=self.n_actions).to(self.device)
+                      number_actions=self.n_actions,
+                      attention=self.attention).to(self.device)
             self.target_net = Network3D(agents=6, 
                       n_sample_points=self.n_sample_points, 
-                      number_actions=self.n_actions).to(self.device)
+                      number_actions=self.n_actions,
+                      attention=self.attention).to(self.device)
         elif model_type == "CommNet":
             self.policy_net = CommNet(agents=6, 
                       n_sample_points=self.n_sample_points, 
