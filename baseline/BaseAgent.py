@@ -197,16 +197,12 @@ class DQNAgent:
                 sample_points = torch.tensor(self.env._sample_points, dtype=torch.float32, device=self.device)
 
                 total_rewards = 0
-                found_truth = np.zeros(self.agents, dtype=bool)
                 self.total_steps = 0
 
                 while self.total_steps <= self.eval_steps:
                     actions = self.policy_net(state, sample_points).view(self.agents, self.n_sample_points, self.n_actions).max(2).indices  # Greedy action selection
                     
-                    next_state, next_sample_points, rewards, done = environment.step(actions)
-                    
-                    found_truth = np.logical_or(found_truth, done.reshape((6)))  # Track if any agent reached the goal
-                    
+                    next_state, next_sample_points, rewards, _ = environment.step(actions)                
                     
                     rewards = torch.tensor(rewards, device=self.device)
                     next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
