@@ -8,7 +8,7 @@ class Network3D(nn.Module):
 
         self.agents = agents
         self.n_sample_points = n_sample_points
-        self.location_dim = location_dim*agents  # Dimension of relative locations (assuming 3D points)
+        self.location_dim = location_dim*agents*n_sample_points  # Dimension of relative locations (assuming 3D points)
 
         self.location_fc = nn.Linear(in_features=self.location_dim, out_features=32)
 
@@ -46,7 +46,7 @@ class Network3D(nn.Module):
         self.prelu5 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         self.fc3 = nn.ModuleList(
-            [nn.Linear(in_features=64, out_features=number_actions) for _ in range(self.agents)])
+            [nn.Linear(in_features=64, out_features=number_actions*n_sample_points) for _ in range(self.agents)])
 
         if xavier:
             for module in self.modules():
@@ -63,7 +63,7 @@ class Network3D(nn.Module):
         - (batch_size, agents, number_actions)
         """
         batched = len(state.shape) == 6  # Check if batch dimension exists
-
+        location = location.view(-1, self.location_dim)
         if batched:
             batch_size = state.shape[0]
             global_location = location.view(batch_size, -1)
@@ -108,7 +108,7 @@ class CommNet(nn.Module):
 
         self.agents = agents
         self.n_sample_points = n_sample_points
-        self.location_dim = location_dim*agents  # Dimension of relative locations (assuming 3D points)
+        self.location_dim = location_dim*agents*n_sample_points  # Dimension of relative locations (assuming 3D points)
 
         self.location_fc = nn.Linear(in_features=self.location_dim, out_features=32)
 
@@ -146,7 +146,7 @@ class CommNet(nn.Module):
         self.prelu5 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         self.fc3 = nn.ModuleList(
-            [nn.Linear(in_features=128 * 2, out_features=number_actions) for _ in range(self.agents)])
+            [nn.Linear(in_features=128 * 2, out_features=number_actions*n_sample_points) for _ in range(self.agents)])
 
         self.attention = attention
         if self.attention:
@@ -169,7 +169,7 @@ class CommNet(nn.Module):
         - (batch_size, agents, number_actions)
         """
         batched = len(state.shape) == 6  # Check if batch dimension exists
-
+        location = location.view(-1, self.location_dim)
         if batched:
             batch_size = state.shape[0]
             global_location = location.view(batch_size, -1)

@@ -84,9 +84,10 @@ class DQNAgent:
         sample = random.random()
         eps_threshold = self.min_epsilon + (self.max_epsilon - self.min_epsilon) * math.exp(-1 * self.total_steps / self.decay)
         if sample < eps_threshold:
-            return torch.tensor([[random.randint(0, self.action_dim - 1)] for _ in range(self.agents)], device=self.device, dtype=torch.int64)
+            return torch.tensor([[[random.randint(0, self.action_dim - 1) for _ in range(self.n_sample_points)]] for _ in range(self.agents)], device=self.device, dtype=torch.int64).squeeze()
         with torch.no_grad():
-            return self.policy_net(state, location).squeeze().max(1).indices.view(self.agents, 1)
+            print("Ask model")
+            return self.policy_net(state, location).view(self.agents, self.n_sample_points, self.n_actions).max(2).indices
 
 
     def optimize_model(self, batch_size=32):
@@ -106,21 +107,29 @@ class DQNAgent:
         # Compute the average reward across agents for each transition
         rewards += torch.mean(rewards, axis=1).unsqueeze(1).repeat(1, rewards.shape[1])
 
+
         #print(locations.shape)
         state_action_values = self.policy_net(states, locations).view(
-            -1, self.agents, self.n_actions).gather(2, actions).squeeze(-1)
+            -1, self.agents, self.n_sample_points, self.n_actions)
+        print("Optimize")
+        print(state_action_values.shape)
+        print(actions.shape)
+        state_action_values.gather(3, actions.unsqueeze(-1)).squeeze(-1)
+        
 
         #next_states_values = torch.zeros((batch_size, self.agents), device=self.device)
 
         with torch.no_grad():
-            next_states_values = self.target_net(next_states, next_locations).view(-1, self.agents, self.n_actions).max(-1)[0]
+            next_states_values = self.target_net(next_states, next_locations).view(-1, self.agents, self.n_sample_points, self.n_actions).max(-1)[0]
         
         #print(dones.squeeze(-1).shape, next_states_values.shape)
-        next_states_values = (1 - dones.squeeze(-1)) * next_states_values
-
+        #next_states_values = (1 - dones.squeeze(-1)) * next_states_values
+        rewards = rewards.unsqueeze(-1).repeat(1, 1, self.n_sample_points)
         # Bellman equation with averaged rewards
+        print(next_states_values.shape, rewards.shape)
         expected_state_action_values = (next_states_values * self.gamma) + rewards
-
+        print("shapes")
+        print(state_action_values.shape, expected_state_action_values.shape)
         criterion = nn.SmoothL1Loss()
         loss = criterion(state_action_values, expected_state_action_values)
         self.optimizer.zero_grad()
@@ -135,32 +144,29 @@ class DQNAgent:
             state = torch.tensor(state, dtype=torch.float32, device=self.device)
             
             # Get normalized locations of each agent
-            location = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
-            normalized_locations = torch.abs(location - location.mean(dim=0, keepdim=True))
+            sample_points = torch.tensor(self.env._sample_points, dtype=torch.float32, device=self.device)
+            #normalized_locations = torch.abs(location - location.mean(dim=0, keepdim=True))
 
             total_reward = 0
-            done = torch.zeros(len(location), dtype=torch.int)
+            done = torch.zeros(self.agents, dtype=torch.int)
             self.total_steps = 0
-            closest_point = np.full(len(self.env._location), float('inf'))
-            furthest_point = np.zeros(len(self.env._location))
 
             while not torch.all(done) and self.total_steps <= self.max_steps:
-                actions = self.select_action(state, normalized_locations)  # Assume select_action returns actions for all agents
-
-                next_state, next_location, rewards, done = self.env.step(actions)
+                actions = self.select_action(state, sample_points)  # Assume select_action returns actions for all agents
+                print(actions.shape)
+                next_state, next_sample_points, rewards, done = self.env.step(actions)
 
                 rewards = torch.tensor(rewards, device=self.device)
                 next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
                 done = torch.tensor(done, dtype=torch.int, device=self.device)
                 
-                next_location = torch.tensor(next_location, dtype=torch.float32, device=self.device)
-                next_normalized_locations = torch.abs(next_location - location.mean(dim=0, keepdim=True))
+                next_sample_points = torch.tensor(next_sample_points, dtype=torch.float32, device=self.device)
 
-                self.memory.push(state, normalized_locations, actions, next_state, next_normalized_locations, rewards, done)
+                self.memory.push(state, sample_points, actions, next_state, next_sample_points, rewards, done)
 
                 state = next_state
 
-                normalized_locations = next_normalized_locations
+                sample_points = next_sample_points
 
                 self.optimize_model()
 
@@ -173,14 +179,9 @@ class DQNAgent:
                 self.target_net.load_state_dict(target_net_state_dict)
                 self.total_steps += 1
                 total_reward += rewards.mean(dim=0).item()
-                current_distances = self.env.distance_to_truth
-                closest_point = np.minimum(closest_point, current_distances)
-                furthest_point = np.maximum(furthest_point, current_distances)
 
             self.logger.info(
-                    f"Episode {episode + 1}: Total Reward = {total_reward:.2f} | Final Avg Distance {np.mean(current_distances):.2f} | "
-                    f"All Reached Goal {torch.all(done)} | Avg Closest Point = {np.mean(closest_point):.2f} | "
-                    f"Avg Furthest Point = {np.mean(furthest_point):.2f}"
+                    f"Episode {episode + 1}: Total Reward = {total_reward:.2f} "
             )
 
             if (episode + 1) % self.eval_interval == 0:

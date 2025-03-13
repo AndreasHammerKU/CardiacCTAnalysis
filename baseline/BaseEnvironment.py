@@ -35,7 +35,7 @@ class MedicalImageEnvironment(gym.Env):
         self.vision_size = vision_size
         
         self.n_sample_points = n_sample_points
-        self.t_values = np.linspace(0,1,n_sample_points)
+        self.t_values = np.linspace(0,1,n_sample_points + 2)[1:-1]
 
         self.width, self.height, self.depth = vision_size
         # Box must be odd
@@ -68,11 +68,17 @@ class MedicalImageEnvironment(gym.Env):
         self.geometry.calculate_bezier_curves()
 
         self._p0, _ground_truth, self._p2 = zip(*self.geometry.Control_points)
-        self._ground_truth = np.array(_ground_truth, dtype=np.int16)
+        self._true_points = np.zeros((
+            self.agents,
+            self.n_sample_points,
+            self.dims
+        ), dtype=np.int16)
+        for i in range(self.agents):
+            self._true_points[i,:,:] = bezier_curve(self._p0[i], _ground_truth[i], self._p2[i], self.t_values)
         
         self.midpoint = [(self._p0[i] + self._p2[i]) // 2 for i in range(self.agents)]
         
-        self.logger.debug("Loaded image: {} with ground truth {} and starting point {}".format(image_name, self._ground_truth[0], self.midpoint[0]))
+        self.logger.debug("Loaded image: {} with ground truth {} and starting point {}".format(image_name, self._true_points, self.midpoint))
 
     def reset(self):
         self._get_next_episode()
@@ -80,16 +86,16 @@ class MedicalImageEnvironment(gym.Env):
 
     def _get_next_episode(self):
         self._location = np.array([(self.midpoint[i][0], self.midpoint[i][1], self.midpoint[i][2]) for i in range(self.agents)], dtype=np.int32)
-        self.state = self._update_state()
-
-    def _update_state(self):
         self._sample_points = np.zeros((
             self.agents,
             self.n_sample_points,
             self.dims
         ), dtype=np.int16)
         for i in range(self.agents):
-            self._sample_points[i, :, :] = bezier_curve(self._p0[i], self._location[i], self._p2[i], self.t_values)
+            self._sample_points[i, :, :] = bezier_curve(self._p0[i], self.midpoint[i], self._p2[i], self.t_values)
+        self.state = self._update_state()
+
+    def _update_state(self):
         half_width, half_height, half_depth = self.width // 2, self.height // 2, self.depth // 2 
         boxes = np.zeros((self.agents, 
                                self.n_sample_points, 
@@ -114,23 +120,36 @@ class MedicalImageEnvironment(gym.Env):
         return boxes
 
     def step(self, actions):
-        # Multi-agent approach
-        action_array = np.array([self.actions[a] for a in actions])
-        new_locations = np.clip(
-            self._location + action_array,
+        # Multi_point_agent approach
+        action_array = np.zeros((
+            self.agents,
+            self.n_sample_points,
+            self.dims
+        ), dtype=np.int16)
+
+        for i in range(self.agents):
+            for o in range(self.n_sample_points):
+                action_array[i,o,:] = self.actions[actions[i,o]]
+        
+        # Shape (agents, n_sample_points)
+        new_sample_points = np.clip(
+            self._sample_points + action_array,
             [0, 0, 0],
             np.array(self.image.shape) - 1
         )
         
-        rewards = np.linalg.norm(self._location - self._ground_truth, axis=1) - np.linalg.norm(new_locations - self._ground_truth, axis=1)
+        rewards = np.zeros(self.agents)
+        for i in range(self.agents):
+            dists = np.linalg.norm(self._sample_points[i] - self._true_points[i], axis=1) - np.linalg.norm(new_sample_points[i] - self._true_points[i], axis=1)
+            rewards[i] = np.mean(dists)
         
-        self._location = new_locations
+        self._sample_points = new_sample_points
         self.state = self._update_state()
         
-        self.distance_to_truth = np.linalg.norm(self._location - self._ground_truth, axis=1)
-        done = np.all(self._location == self._ground_truth, axis=1, keepdims=True)
+        #self.distance_to_truth = np.linalg.norm(self._location - self._ground_truth, axis=1)
+        done = np.all(self._sample_points == self._true_points, axis=1, keepdims=True)
 
-        return self.state, self._location, rewards, done
+        return self.state, self._sample_points, rewards, done
     
     def visualize_current_state(self, granularity=50):
         fig = plt.figure(figsize=(8,6))
