@@ -60,10 +60,10 @@ class MedicalImageEnvironment(gym.Env):
             if self.current_image >= len(self.image_list):
                 self.current_image = 0
         
-        self.image, affine, landmarks = self.dataLoader.load_data(image_name=image_name)
+        self.image, self.affine, landmarks = self.dataLoader.load_data(image_name=image_name)
 
         landmarks =  ras_to_lps(landmarks)
-        voxel_landmarks = world_to_voxel(landmarks=landmarks, affine=affine)
+        voxel_landmarks = world_to_voxel(landmarks=landmarks, affine=self.affine)
         self.geometry = LeafletGeometry(voxel_landmarks)
         self.geometry.calculate_bezier_curves()
 
@@ -165,6 +165,24 @@ class MedicalImageEnvironment(gym.Env):
 
         # Show plot
         plt.show()
+
+    def get_curve_error(self, granularity=100):
+        p0_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._p0])
+        ground_truth_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._ground_truth])
+        p2_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._p2])
+        location_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._location])
+
+        t_values =  np.linspace(0,1, granularity)
+
+        error = np.zeros(self.agents, dtype=np.float32)
+        for i in range(self.agents):
+            predicted_curve = plotting_bezier_curve(p0_world[i], location_world[i], p2_world[i], t_values)
+
+            true_curve = plotting_bezier_curve(p0_world[i], ground_truth_world[i], p2_world[i], t_values)
+
+            error[i] = np.sum(np.abs(predicted_curve - true_curve)) / len(predicted_curve)
+
+        return error      
     
 
 def bezier_curve(p0, p1, p2, t):

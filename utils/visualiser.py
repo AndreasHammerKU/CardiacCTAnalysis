@@ -207,7 +207,7 @@ def align_surface(image, voxels, point_filter):
     return image, voxels
 
 
-def create_slice_viewer(image_name, dataLoader):
+def create_slice_app(image_name, dataLoader):
     nifti_data, affine, landmarks = dataLoader.load_data(image_name=image_name)
 
     orientation = aff2axcodes(affine)

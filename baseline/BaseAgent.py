@@ -177,9 +177,10 @@ class DQNAgent:
                 closest_point = np.minimum(closest_point, current_distances)
                 furthest_point = np.maximum(furthest_point, current_distances)
 
+            errors = self.env.get_curve_error()
             self.logger.info(
                     f"Episode {episode + 1}: Total Reward = {total_reward:.2f} | Final Avg Distance {np.mean(current_distances):.2f} | "
-                    f"All Reached Goal {torch.all(done)} | Avg Closest Point = {np.mean(closest_point):.2f} | "
+                    f"Distances in mm {errors} | Avg Closest Point = {np.mean(closest_point):.2f} | "
                     f"Avg Furthest Point = {np.mean(furthest_point):.2f}"
             )
 
@@ -235,10 +236,11 @@ class DQNAgent:
 
                     self.total_steps += 1
 
+                errors = environment.get_curve_error()
                 #success_counts += found_truth.astype(int)  # Count successes per agent
                 self.logger.info(
                     f"Evaluation Episode {episode + 1}: Total Reward = {total_rewards:.2f} | Final Average Distance = {np.mean(current_distances):.2f} | "
-                    f"Reached Goal {found_truth} | Closest Point = {closest_distances} | "
+                    f"Error in mm {errors} | Closest Point = {closest_distances} | "
                     f"Furthest Point = {furthest_distances}"
                 )
 
