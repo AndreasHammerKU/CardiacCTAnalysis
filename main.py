@@ -40,7 +40,8 @@ def main():
                          model_type=args.model_type,
                          max_steps=args.steps,
                          episodes=args.episodes,
-                         image_interval=args.image_interval)
+                         image_interval=args.image_interval,
+                         experiment=args.experiment)
     
         agent.train_dqn()
         train_env.visualize_current_state()
@@ -64,7 +65,8 @@ def main():
                          model_path=args.model,
                          model_type=args.model_type,
                          max_steps=args.steps,
-                         episodes=args.episodes)
+                         episodes=args.episodes,
+                         experiment=args.experiment)
         
         agent.test_dqn()
         test_env.visualize_current_state()

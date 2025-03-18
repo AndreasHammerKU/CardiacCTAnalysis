@@ -1,4 +1,18 @@
 import argparse
+from enum import Enum
+
+class Experiment(Enum):
+    WORK_ALONE = 1
+    SHARE_POSITIONS = 2
+    SHARE_PAIRWISE = 3
+
+
+    @classmethod
+    def from_string(cls, label):
+        try:
+            return cls[label]
+        except KeyError:
+            raise argparse.ArgumentTypeError(f"Invalid choice: {label}. Choose from {[e.name for e in cls]}")
 
 def parse_args():
     parser = argparse.ArgumentParser(description="DQN Agent Main Script")
@@ -75,6 +89,14 @@ def parse_args():
         type=str,
         default="Network3D",
         help="Network Type."
+    )
+
+    parser.add_argument(
+        "--experiment",
+        type=Experiment.from_string,
+        choices=list(Experiment),
+        required=True,
+        help="Choose an experiment type."
     )
 
     return parser.parse_args()

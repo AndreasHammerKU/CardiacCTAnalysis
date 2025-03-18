@@ -7,6 +7,7 @@ from scipy.special import binom
 from collections import deque
 from baseline.BaseMemory import ReplayMemory, Transition
 from baseline.BaseDQN import Network3D, CommNet
+from utils.parser import Experiment
 
 class DQNAgent:
     def __init__(self,  state_dim, 
@@ -19,6 +20,7 @@ class DQNAgent:
                         model_path=None,
                         model_type="Network3D",
                         attention=False,
+                        experiment=Experiment.WORK_ALONE,
                         lr=0.001, 
                         gamma=0.90, 
                         max_epsilon=1.0, 
@@ -33,6 +35,7 @@ class DQNAgent:
                         evaluation_interval=10):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.env = train_environment
+        self.experiment = experiment
         self.eval_env = eval_environment
         self.test_env = test_environment
         self.logger = logger
@@ -57,18 +60,22 @@ class DQNAgent:
             self.policy_net = Network3D(agents=6, 
                       n_sample_points=self.n_sample_points, 
                       number_actions=self.n_actions,
-                      attention=self.attention).to(self.device)
+                      attention=self.attention,
+                      experiment=self.experiment).to(self.device)
             self.target_net = Network3D(agents=6, 
                       n_sample_points=self.n_sample_points, 
                       number_actions=self.n_actions,
-                      attention=self.attention).to(self.device)
+                      attention=self.attention,
+                      experiment=self.experiment).to(self.device)
         elif model_type == "CommNet":
             self.policy_net = CommNet(agents=6, 
                       n_sample_points=self.n_sample_points, 
-                      number_actions=self.n_actions).to(self.device)
+                      number_actions=self.n_actions,
+                      experiment=self.experiment).to(self.device)
             self.target_net = CommNet(agents=6, 
                       n_sample_points=self.n_sample_points, 
-                      number_actions=self.n_actions).to(self.device)
+                      number_actions=self.n_actions,
+                      experiment=self.experiment).to(self.device)
 
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
@@ -97,8 +104,6 @@ class DQNAgent:
 
         states = torch.cat([s.unsqueeze(0) for s in batch.state], dim=0)
         next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state], dim=0)
-        locations = torch.cat([l.unsqueeze(0) for l in batch.location], dim=0)
-        next_locations = torch.cat([l.unsqueeze(0) for l in batch.next_location], dim=0)
         actions = torch.cat([a.unsqueeze(0) for a in batch.action], dim=0)
         rewards = torch.cat([r.unsqueeze(0) for r in batch.reward], dim=0)
         dones = torch.cat([d.unsqueeze(0) for d in batch.done], dim=0)
@@ -107,10 +112,11 @@ class DQNAgent:
         rewards += torch.mean(rewards, axis=1).unsqueeze(1).repeat(1, rewards.shape[1])
 
         #print(locations.shape)
+        locations = torch.cat([l.unsqueeze(0) for l in batch.location], dim=0) if self.experiment != Experiment.WORK_ALONE else None
+        next_locations = torch.cat([l.unsqueeze(0) for l in batch.next_location], dim=0) if self.experiment != Experiment.WORK_ALONE else None
+        
         state_action_values = self.policy_net(states, locations).view(
             -1, self.agents, self.n_actions).gather(2, actions).squeeze(-1)
-
-        #next_states_values = torch.zeros((batch_size, self.agents), device=self.device)
 
         with torch.no_grad():
             next_states_values = self.target_net(next_states, next_locations).view(-1, self.agents, self.n_actions).max(-1)[0]
@@ -135,32 +141,44 @@ class DQNAgent:
             state = torch.tensor(state, dtype=torch.float32, device=self.device)
             
             # Get normalized locations of each agent
-            location = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
-            normalized_locations = torch.abs(location - location.mean(dim=0, keepdim=True))
+            if self.experiment == Experiment.SHARE_POSITIONS:
+                location_data = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
+                location_data = torch.abs(location_data - location_data.mean(dim=0, keepdim=True))
+            elif self.experiment == Experiment.SHARE_PAIRWISE:
+                location_data = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
+                location_data = torch.cdist(location_data, location_data)
+            else:
+                location_data = None
+                next_location_data = None
 
             total_reward = 0
-            done = torch.zeros(len(location), dtype=torch.int)
+            done = torch.zeros(self.agents, dtype=torch.int)
             self.total_steps = 0
             closest_point = np.full(len(self.env._location), float('inf'))
             furthest_point = np.zeros(len(self.env._location))
 
             while not torch.all(done) and self.total_steps <= self.max_steps:
-                actions = self.select_action(state, normalized_locations)  # Assume select_action returns actions for all agents
+                actions = self.select_action(state, location_data)  # Assume select_action returns actions for all agents
 
-                next_state, next_location, rewards, done = self.env.step(actions)
+                next_state, next_location_data, rewards, done = self.env.step(actions)
 
                 rewards = torch.tensor(rewards, device=self.device)
                 next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
                 done = torch.tensor(done, dtype=torch.int, device=self.device)
                 
-                next_location = torch.tensor(next_location, dtype=torch.float32, device=self.device)
-                next_normalized_locations = torch.abs(next_location - location.mean(dim=0, keepdim=True))
+                if self.experiment == Experiment.SHARE_POSITIONS:
+                    next_location_data = torch.tensor(next_location_data, dtype=torch.float32, device=self.device)
+                    next_location_data = torch.abs(next_location_data - next_location_data.mean(dim=0, keepdim=True))
+                elif self.experiment == Experiment.SHARE_PAIRWISE:
+                    next_location_data = torch.tensor(next_location_data, dtype=torch.float32, device=self.device)
+                    next_location_data = torch.cdist(next_location_data, next_location_data)
 
-                self.memory.push(state, normalized_locations, actions, next_state, next_normalized_locations, rewards, done)
+                self.memory.push(state, location_data, actions, next_state, next_location_data, rewards, done)
 
                 state = next_state
 
-                normalized_locations = next_normalized_locations
+                if self.experiment != Experiment.WORK_ALONE:
+                    location_data = next_location_data
 
                 self.optimize_model()
 
@@ -180,7 +198,7 @@ class DQNAgent:
             errors = self.env.get_curve_error()
             self.logger.info(
                     f"Episode {episode + 1}: Total Reward = {total_reward:.2f} | Final Avg Distance {np.mean(current_distances):.2f} | "
-                    f"Distances in mm {errors} | Avg Closest Point = {np.mean(closest_point):.2f} | "
+                    f"Distances in mm {np.round(errors,2)} | Avg Closest Point = {np.mean(closest_point):.2f} | "
                     f"Avg Furthest Point = {np.mean(furthest_point):.2f}"
             )
 
@@ -188,7 +206,7 @@ class DQNAgent:
                 self.logger.info(f"===== Validation Run =====")
                 self._evaluate_dqn(self.eval_env)      
 
-        torch.save(self.policy_net.state_dict(), f"latest-model-{self.model_type}.pt")
+        torch.save(self.policy_net.state_dict(), f"latest-model-{self.model_type}-{self.experiment.name}.pt")
 
     def _evaluate_dqn(self, environment):
         """
@@ -203,8 +221,16 @@ class DQNAgent:
                 environment.get_next_image()
                 state = environment.reset()
                 state = torch.tensor(state, dtype=torch.float32, device=self.device)
-                location = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
-                normalized_locations = torch.abs(location - location.mean(dim=0, keepdim=True))
+
+                if self.experiment == Experiment.SHARE_POSITIONS:
+                    location_data = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
+                    location_data = torch.abs(location_data - location_data.mean(dim=0, keepdim=True))
+                elif self.experiment == Experiment.SHARE_PAIRWISE:
+                    location_data = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
+                    location_data = torch.cdist(location_data, location_data)
+                else:
+                    location_data = None
+                    next_location_data = None
 
                 closest_distances = np.full(self.agents, float('inf'))
                 furthest_distances = np.zeros(self.agents)
@@ -213,9 +239,9 @@ class DQNAgent:
                 self.total_steps = 0
 
                 while self.total_steps <= self.eval_steps:
-                    actions = self.policy_net(state, normalized_locations).squeeze().max(1).indices.view(self.agents, 1)  # Greedy action selection
+                    actions = self.policy_net(state, location_data).squeeze().max(1).indices.view(self.agents, 1)  # Greedy action selection
                     
-                    next_state, next_location, rewards, done = environment.step(actions)
+                    next_state, next_location_data, rewards, done = environment.step(actions)
                     
                     found_truth = np.logical_or(found_truth, done.reshape((6)))  # Track if any agent reached the goal
                     
@@ -223,11 +249,17 @@ class DQNAgent:
                     rewards = torch.tensor(rewards, device=self.device)
                     next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
 
-                    next_location = torch.tensor(next_location, dtype=torch.float32, device=self.device)
-                    next_normalized_locations = torch.abs(next_location - next_location.mean(dim=0, keepdim=True))
+                    if self.experiment == Experiment.SHARE_POSITIONS:
+                        next_location_data = torch.tensor(next_location_data, dtype=torch.float32, device=self.device)
+                        next_location_data = torch.abs(next_location_data - next_location_data.mean(dim=0, keepdim=True))
+                        location_data = next_location_data
+                    elif self.experiment == Experiment.SHARE_PAIRWISE:
+                        next_location_data = torch.tensor(next_location_data, dtype=torch.float32, device=self.device)
+                        next_location_data = torch.cdist(next_location_data, next_location_data)
+                        location_data = next_location_data
 
                     state = next_state
-                    normalized_locations = next_normalized_locations
+                    
                     total_rewards += rewards.mean(dim=0).item()
 
                     current_distances = environment.distance_to_truth
@@ -240,8 +272,8 @@ class DQNAgent:
                 #success_counts += found_truth.astype(int)  # Count successes per agent
                 self.logger.info(
                     f"Evaluation Episode {episode + 1}: Total Reward = {total_rewards:.2f} | Final Average Distance = {np.mean(current_distances):.2f} | "
-                    f"Error in mm {errors} | Closest Point = {closest_distances} | "
-                    f"Furthest Point = {furthest_distances}"
+                    f"Error in mm {np.round(errors,2)} | Closest Point = {np.round(closest_distances, 2)} | "
+                    f"Furthest Point = {np.round(furthest_distances, 2)}"
                 )
 
         avg_closest = closest_distances.mean()

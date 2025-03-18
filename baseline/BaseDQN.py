@@ -1,16 +1,20 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from utils.parser import Experiment
 
 class Network3D(nn.Module):
-    def __init__(self, agents, n_sample_points, number_actions, location_dim=3, xavier=True, attention=False):
+    def __init__(self, agents, n_sample_points, number_actions, location_dim=3, xavier=True, attention=False, experiment=Experiment.WORK_ALONE):
         super(Network3D, self).__init__()
 
+        self.experiment = experiment
         self.agents = agents
         self.n_sample_points = n_sample_points
-        self.location_dim = location_dim*agents  # Dimension of relative locations (assuming 3D points)
 
-        self.location_fc = nn.Linear(in_features=self.location_dim, out_features=32)
+        if self.experiment == Experiment.SHARE_POSITIONS:# Dimension of relative locations (assuming 3D points)
+            self.location_fc = nn.Linear(in_features=location_dim*agents, out_features=32)
+        elif self.experiment == Experiment.SHARE_PAIRWISE:
+            self.location_fc = nn.Linear(in_features=self.agents**2, out_features=32)
 
         self.conv0 = nn.Conv3d(
             in_channels=n_sample_points,
@@ -42,7 +46,8 @@ class Network3D(nn.Module):
         
         # Modify fc2 to accept location input
         self.fc2 = nn.ModuleList(
-            [nn.Linear(in_features=128 + 32, out_features=64) for _ in range(self.agents)])
+            [nn.Linear(in_features=128 + 
+                       (32 * (self.experiment != Experiment.WORK_ALONE)), out_features=64) for _ in range(self.agents)])
         self.prelu5 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         self.fc3 = nn.ModuleList(
@@ -53,7 +58,7 @@ class Network3D(nn.Module):
                 if isinstance(module, (nn.Conv3d, nn.Linear)):
                     torch.nn.init.xavier_uniform_(module.weight)
 
-    def forward(self, state, location):
+    def forward(self, state, location=None):
         """
         Input:
         - state: (batch_size, agents, n_sample_points, *image_size)
@@ -66,11 +71,12 @@ class Network3D(nn.Module):
 
         if batched:
             batch_size = state.shape[0]
-            global_location = location.view(batch_size, -1)
+            location_data = location.view(batch_size, -1) if self.experiment != Experiment.WORK_ALONE else None
         else:
-            global_location = location.view(1, -1)
+            location_data = location.view(1, -1) if self.experiment != Experiment.WORK_ALONE else None
         
-        global_location = self.location_fc(global_location)
+        if self.experiment != Experiment.WORK_ALONE:
+            location_data = self.location_fc(location_data)
 
         output = []
         for i in range(self.agents):
@@ -85,14 +91,14 @@ class Network3D(nn.Module):
             x = self.prelu2(x)
             x = self.maxpool2(x)
             x = x.view(-1, 864)
-
+            #print(x.shape)
             # Pass through first FC layer
             x = self.fc1[i](x)
             x = self.prelu4[i](x)
+            if self.experiment != Experiment.WORK_ALONE:
+                x = torch.cat([x, location_data], dim=-1)
+            #print(x.shape)
 
-            # Concatenate location before second FC layer
-            x = torch.cat([x, global_location], dim=-1)
-            
             # Pass through modified second FC layer
             x = self.fc2[i](x)
             x = self.prelu5[i](x)
@@ -103,7 +109,7 @@ class Network3D(nn.Module):
         return output
     
 class CommNet(nn.Module):
-    def __init__(self, agents, n_sample_points, number_actions, location_dim=3, xavier=True, attention=False):
+    def __init__(self, agents, n_sample_points, number_actions, location_dim=3, xavier=True, attention=False, experiment=Experiment.WORK_ALONE):
         super(CommNet, self).__init__()
 
         self.agents = agents
@@ -159,7 +165,7 @@ class CommNet(nn.Module):
                 if isinstance(module, (nn.Conv3d, nn.Linear)):
                     torch.nn.init.xavier_uniform_(module.weight)
 
-    def forward(self, state, location):
+    def forward(self, state, location=None):
         """
         Input:
         - state: (batch_size, agents, n_sample_points, *image_size)
