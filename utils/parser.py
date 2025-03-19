@@ -14,6 +14,38 @@ class Experiment(Enum):
         except KeyError:
             raise argparse.ArgumentTypeError(f"Invalid choice: {label}. Choose from {[e.name for e in cls]}")
 
+class ExperimentConfig:
+    def __init__(self, model_type="Network3D", 
+                       attention=False, 
+                       experiment=Experiment.WORK_ALONE, 
+                       lr=0.001, 
+                       gamma=0.9, 
+                       max_epsilon=1.0,
+                       min_epsilon=0.01,
+                       decay=250, 
+                       agents=6, 
+                       tau=0.005, 
+                       max_steps=1000,
+                       evaluation_steps=30,
+                       episodes=50,
+                       image_interval=1,
+                       evaluation_interval=10):
+        self.model_type=model_type
+        self.attention=attention, 
+        self.experiment=experiment, 
+        self.lr=lr, 
+        self.gamma=gamma, 
+        self.max_epsilon=max_epsilon,
+        self.min_epsilon=min_epsilon,
+        self.decay=decay, 
+        self.agents=agents, 
+        self.tau=tau, 
+        self.max_steps=max_steps,
+        self.evaluation_steps=evaluation_steps,
+        self.episodes=episodes,
+        self.image_interval=image_interval,
+        self.evaluation_interval=evaluation_interval
+
 def parse_args():
     parser = argparse.ArgumentParser(description="DQN Agent Main Script")
 
