@@ -112,11 +112,14 @@ class CommNet(nn.Module):
     def __init__(self, agents, n_sample_points, number_actions, location_dim=3, xavier=True, attention=False, experiment=Experiment.WORK_ALONE):
         super(CommNet, self).__init__()
 
+        self.experiment = experiment
         self.agents = agents
         self.n_sample_points = n_sample_points
-        self.location_dim = location_dim*agents  # Dimension of relative locations (assuming 3D points)
 
-        self.location_fc = nn.Linear(in_features=self.location_dim, out_features=32)
+        if self.experiment == Experiment.SHARE_POSITIONS:# Dimension of relative locations (assuming 3D points)
+            self.location_fc = nn.Linear(in_features=location_dim*agents, out_features=32)
+        elif self.experiment == Experiment.SHARE_PAIRWISE:
+            self.location_fc = nn.Linear(in_features=self.agents**2, out_features=32)
 
         self.conv0 = nn.Conv3d(
             in_channels=n_sample_points,
@@ -142,7 +145,7 @@ class CommNet(nn.Module):
         self.prelu2 = nn.PReLU()
 
         self.fc1 = nn.ModuleList(
-            [nn.Linear(in_features=864 * 2, out_features=256) for _ in range(self.agents)])
+            [nn.Linear(in_features=(864 + (32 * (self.experiment != Experiment.WORK_ALONE))) * 2, out_features=256) for _ in range(self.agents)])
         self.prelu4 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         
@@ -178,12 +181,13 @@ class CommNet(nn.Module):
 
         if batched:
             batch_size = state.shape[0]
-            global_location = location.view(batch_size, -1)
+            location_data = location.view(batch_size, -1) if self.experiment != Experiment.WORK_ALONE else None
         else:
-            global_location = location.view(1, -1)
+            location_data = location.view(1, -1) if self.experiment != Experiment.WORK_ALONE else None
         
-        global_location = self.location_fc(global_location)
-        #print("global input: ", state.shape)    
+        if self.experiment != Experiment.WORK_ALONE:
+            location_data = self.location_fc(location_data) 
+        
         input2 = []
         for i in range(self.agents):
             x = state[:, i] if batched else state[i]
@@ -197,6 +201,8 @@ class CommNet(nn.Module):
             x = self.prelu2(x)
             x = self.maxpool2(x)
             x = x.view(-1, 864)
+            if self.experiment != Experiment.WORK_ALONE:
+                x = torch.cat([x, location_data], dim=-1)
             input2.append(x)
         input2 = torch.stack(input2, dim=1)
         #print("input 2: ", input2.shape)
@@ -214,7 +220,6 @@ class CommNet(nn.Module):
             x = self.fc1[i](torch.cat((x, comm[i]), axis=-1))
             input3.append(self.prelu4[i](x))
         input3 = torch.stack(input3, dim=1)
-        #print("Input 3: ", input3.shape)
 
         if self.attention:
             comm = torch.cat([torch.sum((input3.transpose(1, 2) * nn.Softmax(dim=0)(self.comm_att2[i])), axis=2).unsqueeze(0)
