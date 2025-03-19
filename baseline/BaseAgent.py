@@ -8,6 +8,7 @@ from collections import deque
 from baseline.BaseMemory import ReplayMemory, Transition
 from baseline.BaseDQN import Network3D, CommNet
 from utils.parser import Experiment
+import matplotlib.pyplot as plt
 
 class DQNAgent:
     def __init__(self,  state_dim, 
@@ -215,7 +216,7 @@ class DQNAgent:
 
         self.policy_net.eval()  # Set the network to evaluation mode
 
-
+        evaluation_errors = []
         with torch.no_grad():  # No gradient tracking needed for evaluation
             for episode in range(len(environment.image_list)):
                 environment.get_next_image()
@@ -269,12 +270,32 @@ class DQNAgent:
                     self.total_steps += 1
 
                 errors = environment.get_curve_error()
+
+                evaluation_errors.append(errors)
                 #success_counts += found_truth.astype(int)  # Count successes per agent
                 self.logger.info(
                     f"Evaluation Episode {episode + 1}: Total Reward = {total_rewards:.2f} | Final Average Distance = {np.mean(current_distances):.2f} | "
                     f"Error in mm {np.round(errors,2)} | Closest Point = {np.round(closest_distances, 2)} | "
                     f"Furthest Point = {np.round(furthest_distances, 2)}"
                 )
+        
+        error_data = np.concatenate(evaluation_errors)
+
+        max_bin = 10
+        step_size = 0.5
+        bins = np.arange(0, max_bin + step_size, step=step_size)
+        bins = np.append(bins, np.inf)
+
+        hist, bin_edges = np.histogram(error_data, bins=bins)
+        bin_labels = [f"{bin_edges[i]}-{bin_edges[i+1]}" for i in range(len(bin_edges)-2)]
+        bin_labels.append(f"{max_bin}+")
+
+        plt.bar(range(len(hist)), hist, width=0.8, edgecolor="black")
+        plt.xticks(range(len(hist)), bin_labels, rotation=45)
+        plt.xlabel("Errors in mm")
+        plt.ylabel("Frequency")
+        plt.title(f"Histogram of curve error in mm for evaulation run")
+        plt.show()
 
         avg_closest = closest_distances.mean()
         avg_furthest = furthest_distances.mean()
