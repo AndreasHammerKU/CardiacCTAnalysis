@@ -31,19 +31,19 @@ class ExperimentConfig:
                        image_interval=1,
                        evaluation_interval=10):
         self.model_type=model_type
-        self.attention=attention, 
-        self.experiment=experiment, 
-        self.lr=lr, 
-        self.gamma=gamma, 
-        self.max_epsilon=max_epsilon,
-        self.min_epsilon=min_epsilon,
-        self.decay=decay, 
-        self.agents=agents, 
-        self.tau=tau, 
-        self.max_steps=max_steps,
-        self.evaluation_steps=evaluation_steps,
-        self.episodes=episodes,
-        self.image_interval=image_interval,
+        self.attention=attention
+        self.experiment=experiment 
+        self.lr=lr
+        self.gamma=gamma 
+        self.max_epsilon=max_epsilon
+        self.min_epsilon=min_epsilon
+        self.decay=decay
+        self.agents=agents
+        self.tau=tau
+        self.max_steps=max_steps
+        self.evaluation_steps=evaluation_steps
+        self.episodes=episodes
+        self.image_interval=image_interval
         self.evaluation_interval=evaluation_interval
 
 def parse_args():
