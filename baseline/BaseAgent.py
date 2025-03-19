@@ -224,10 +224,10 @@ class DQNAgent:
                 state = torch.tensor(state, dtype=torch.float32, device=self.device)
 
                 if self.experiment == Experiment.SHARE_POSITIONS:
-                    location_data = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
+                    location_data = torch.tensor(environment._location, dtype=torch.float32, device=self.device)
                     location_data = torch.abs(location_data - location_data.mean(dim=0, keepdim=True))
                 elif self.experiment == Experiment.SHARE_PAIRWISE:
-                    location_data = torch.tensor(self.env._location, dtype=torch.float32, device=self.device)
+                    location_data = torch.tensor(environment._location, dtype=torch.float32, device=self.device)
                     location_data = torch.cdist(location_data, location_data)
                 else:
                     location_data = None
