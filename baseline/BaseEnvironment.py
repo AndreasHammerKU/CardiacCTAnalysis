@@ -187,7 +187,7 @@ class MedicalImageEnvironment(gym.Env):
 
         return error      
     
-    def get_distance_field(self, granularity=50):
+    def get_distance_field(self, max_distance=5, granularity=50):
         bezier_points = np.zeros((
             self.agents * granularity,
             self.dims
@@ -196,34 +196,8 @@ class MedicalImageEnvironment(gym.Env):
         for i in range(self.agents):
             offset = i*granularity
             bezier_points[offset:offset+granularity, :] = bezier_curve(self._p0[i], self._ground_truth[i], self._p2[i], t_values)
-        
-        fig = plt.figure(figsize=(8,6))
-        ax = fig.add_subplot(111, projection='3d')
 
-        # Ground truth points
-        for point in bezier_points:
-            ax.scatter(point[0], point[1], point[2], color='black', marker='o')
-        
-        plt.show()
-
-        print("Computing distance field")
-        distance_field = self.compute_distance_field(bezier_samples=bezier_points, max_distance=2)
-        print("Done computing")
-        iso_value=0.5
-
-        Nx, Ny, Nz = distance_field.shape
-        fig = go.Figure(data=go.Isosurface(
-            x=np.tile(np.arange(Nx), Ny * Nz),
-            y=np.repeat(np.arange(Ny), Nx * Nz),
-            z=np.repeat(np.arange(Nz), Nx * Ny),
-            value=distance_field.ravel(),
-            isomin=iso_value, isomax=iso_value + 0.05,
-            opacity=0.6,
-            surface_count=1
-        ))
-
-        fig.update_layout(title="3D Iso-Surface of Distance Field")
-        fig.show()
+        return self.compute_distance_field(bezier_samples=bezier_points, max_distance=max_distance)
 
     # Compute distance field
     def compute_distance_field(self, bezier_samples, max_distance):

@@ -4,20 +4,20 @@ import nibabel as nib
 import os
 from collections import namedtuple
 from tqdm import tqdm
+import numpy as np
 
 DataEntry = namedtuple('DataEntry',
                         ('image', 'affine', 'landmarks'))
 
 class DataLoader():
-    def __init__(self, dataset_dir="", image_dir="images", landmarks_dir="landmarks"):
+    def __init__(self, dataset_dir="", image_dir="images", landmarks_dir="landmarks", distance_dir="distance_fields"):
 
         self.dataset_dir = dataset_dir
         self.image_dir =  os.path.join(dataset_dir, image_dir)
         self.landmarks_dir = os.path.join(dataset_dir, landmarks_dir)
+        self.distance_fields = os.path.join(dataset_dir, distance_dir)
 
         self.preloaded = False
-
-
 
     def preload_images(self, image_list):
         self.preloaded_images = {}
@@ -48,3 +48,10 @@ class DataLoader():
             landmark_data = json.load(file)
 
         return nifti_data, affine, landmark_data
+    
+    def save_distance_field(self, image_name, distance_field):
+        np.savez_compressed(os.path.join(self.distance_fields, f"d_{image_name}.npz"), distance=distance_field)
+
+    def load_distance_field(self, image_name):
+        loaded_data = np.load(os.path.join(self.distance_fields, f"d_{image_name}.npz"))
+        return loaded_data["distance"]
