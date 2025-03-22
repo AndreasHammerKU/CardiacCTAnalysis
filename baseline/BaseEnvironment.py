@@ -6,6 +6,9 @@ import random
 from utils.geometry_fitting import LeafletGeometry
 from utils.visualiser import ras_to_lps, world_to_voxel
 import matplotlib.pyplot as plt
+from scipy.spatial import KDTree
+from scipy.special import comb
+import plotly.graph_objects as go
 
 class MedicalImageEnvironment(gym.Env):
 
@@ -184,6 +187,66 @@ class MedicalImageEnvironment(gym.Env):
 
         return error      
     
+    def get_distance_field(self, granularity=50):
+        bezier_points = np.zeros((
+            self.agents * granularity,
+            self.dims
+        ), dtype=np.int16)
+        t_values = np.linspace(0, 1, granularity)
+        for i in range(self.agents):
+            offset = i*granularity
+            bezier_points[offset:offset+granularity, :] = bezier_curve(self._p0[i], self._ground_truth[i], self._p2[i], t_values)
+        
+        fig = plt.figure(figsize=(8,6))
+        ax = fig.add_subplot(111, projection='3d')
+
+        # Ground truth points
+        for point in bezier_points:
+            ax.scatter(point[0], point[1], point[2], color='black', marker='o')
+        
+        plt.show()
+
+        print("Computing distance field")
+        distance_field = self.compute_distance_field(bezier_samples=bezier_points, max_distance=2)
+        print("Done computing")
+        iso_value=0.5
+
+        Nx, Ny, Nz = distance_field.shape
+        fig = go.Figure(data=go.Isosurface(
+            x=np.tile(np.arange(Nx), Ny * Nz),
+            y=np.repeat(np.arange(Ny), Nx * Nz),
+            z=np.repeat(np.arange(Nz), Nx * Ny),
+            value=distance_field.ravel(),
+            isomin=iso_value, isomax=iso_value + 0.05,
+            opacity=0.6,
+            surface_count=1
+        ))
+
+        fig.update_layout(title="3D Iso-Surface of Distance Field")
+        fig.show()
+
+    # Compute distance field
+    def compute_distance_field(self, bezier_samples, max_distance):
+        Nx, Ny, Nz = self.image.shape
+
+        # Generate 3D grid points
+        x = np.arange(0, Nx)
+        y = np.arange(0, Ny)
+        z = np.arange(0, Nz)
+        X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
+        grid_points = np.column_stack([X.ravel(), Y.ravel(), Z.ravel()])  # (Nx*Ny*Nz, 3)
+
+        # Build KD-tree for fast nearest-neighbor lookup
+        tree = KDTree(bezier_samples)
+
+        # Find nearest Bézier sample for each grid point
+        distances, _ = tree.query(grid_points)
+
+        # Normalize distances to [0, 1]
+        distances = np.clip(1 - distances / max_distance, 0, 1)
+
+        # Reshape back to 3D grid
+        return distances.reshape(Nx, Ny, Nz)
 
 def bezier_curve(p0, p1, p2, t):
     curve = np.outer((1 - t) ** 2, p0) + np.outer(2 * (1 - t) * t, p1) + np.outer(t ** 2, p2)
@@ -193,5 +256,3 @@ def plotting_bezier_curve(p0, p1, p2, t):
     curve = np.outer((1 - t) ** 2, p0) + np.outer(2 * (1 - t) * t, p1) + np.outer(t ** 2, p2)
     return curve  # Convert to integer indices for accessing grid values
 
-
-        
