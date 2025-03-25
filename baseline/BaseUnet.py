@@ -122,7 +122,6 @@ class BaseUNetTrainer:
             model.train()
             self.logger.info(f"Epoch {epoch+1}")
             running_loss = 0.0
-            print(self.train_data.shape)
             for i in range(len(self.image_list)):
                 optimizer.zero_grad()
                 outputs = model(self.train_data[i].unsqueeze(0).unsqueeze(0))
