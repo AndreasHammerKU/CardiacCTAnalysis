@@ -14,7 +14,7 @@ class BaseUNetTrainer:
         self.image_list = image_list
         self.logger = logger
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.fixed_image_size = 512
+        self.fixed_image_size = 128
 
         self.env = MedicalImageEnvironment(
             dataLoader=dataLoader,
@@ -86,8 +86,7 @@ class BaseUNetTrainer:
         for i in tqdm(range(len(self.image_list))):
             image_name = self.image_list[i]
             nifti_data, _, _ = self.dataLoader.load_data(image_name=image_name)
-            z_limit = nifti_data.shape[2]
-            images[i, :, :, :z_limit] = nifti_data
+            images[i] = nifti_data
         
         self.train_data = torch.tensor(images, dtype=torch.float32, device=self.device)
 
@@ -101,8 +100,7 @@ class BaseUNetTrainer:
         for i in tqdm(range(len(self.image_list))):
             image_name = self.image_list[i]
             distance_field = self.dataLoader.load_distance_field(image_name=image_name)
-            z_limit = distance_field.shape[2]
-            images[i, :, :, :z_limit] = distance_field
+            images[i] = distance_field
 
         self.distance_fields = torch.tensor(distance_fields, dtype=torch.float32, device=self.device)
 

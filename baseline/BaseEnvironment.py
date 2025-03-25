@@ -4,7 +4,6 @@ import numpy as np
 from collections import (Counter, defaultdict, deque, namedtuple)
 import random
 from utils.geometry_fitting import LeafletGeometry
-from utils.visualiser import ras_to_lps, world_to_voxel
 import matplotlib.pyplot as plt
 from scipy.spatial import KDTree
 from scipy.special import comb
@@ -63,10 +62,8 @@ class MedicalImageEnvironment(gym.Env):
             if self.current_image >= len(self.image_list):
                 self.current_image = 0
         
-        self.image, self.affine, landmarks = self.dataLoader.load_data(image_name=image_name)
+        self.image, self.affine, voxel_landmarks = self.dataLoader.load_data(image_name=image_name)
 
-        landmarks =  ras_to_lps(landmarks)
-        voxel_landmarks = world_to_voxel(landmarks=landmarks, affine=self.affine)
         self.geometry = LeafletGeometry(voxel_landmarks)
         self.geometry.calculate_bezier_curves()
 

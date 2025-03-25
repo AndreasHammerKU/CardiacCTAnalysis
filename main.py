@@ -1,7 +1,7 @@
 import utils.logger as logs
 import utils.parser as parse
 from baseline.BaseEnvironment import MedicalImageEnvironment
-from utils.io_utils import DataLoader
+from baseline.BaseDataLoader import DataLoader
 from baseline.BaseAgent import DQNAgent
 import constants as c
 
@@ -43,6 +43,7 @@ def main():
                          image_interval=args.image_interval,
                          experiment=args.experiment)
     
+        
         agent.train_dqn()
         train_env.visualize_current_state()
         eval_env.visualize_current_state()

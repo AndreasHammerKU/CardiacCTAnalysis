@@ -4,32 +4,9 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output
 import scipy
-from nibabel.orientations import aff2axcodes
-from utils.io_utils import DataLoader
 import utils.geometry_fitting as geom
 
-def ras_to_lps(dict):
-    converted_dict = {}
-    for key, value in dict.items():
-        if isinstance(value[0], (list, tuple, np.ndarray)):  # Check if it's a list of points (curve)
-            converted_dict[key] = [np.array([-point[0], -point[1], point[2]]).tolist() for point in value]
-        else:  # Single point case
-            converted_dict[key] = np.array([-value[0], -value[1], value[2]]).tolist()
-    return converted_dict
-    
-
-def world_to_voxel(landmarks, affine):
-    inv_affine = np.linalg.inv(affine)
-    voxel_landmarks = {}
-
-    for label, value in landmarks.items():
-        if isinstance(value[0], (list, tuple, np.ndarray)):  # Check if it's a list of points (curve)
-            voxel_landmarks[label] = [np.dot(inv_affine, np.append(point, 1))[:3].tolist() for point in value]
-        else:  # Single point case
-            voxel_landmarks[label] = np.dot(inv_affine, np.append(value, 1))[:3].tolist()
-    return voxel_landmarks
-
-def create_slice_viewer(nifti_data, landmark_data):
+def _create_slice_viewer(nifti_data, landmark_data):
     slices = nifti_data.shape[2]
     
     app = dash.Dash(__name__)
@@ -125,8 +102,8 @@ def create_slice_viewer(nifti_data, landmark_data):
             yaxis_title='Y',
             xaxis=dict(scaleanchor="y"),  # This ensures that x and y axes have the same scale
             yaxis=dict(constrain='domain'),
-            height=1000,  # Optional, you can adjust this as needed
-            width=1000    # Optional, ensuring square aspect ratio
+            height=800,  # Optional, you can adjust this as needed
+            width=800    # Optional, ensuring square aspect ratio
         )
         
         return fig
@@ -208,19 +185,11 @@ def align_surface(image, voxels, point_filter):
 
 
 def create_slice_app(image_name, dataLoader):
-    nifti_data, affine, landmarks = dataLoader.load_data(image_name=image_name)
-
-    orientation = aff2axcodes(affine)
-    print("Image Orientation is: ", orientation)
-
-    landmarks = ras_to_lps(landmarks)
-
-    voxels = world_to_voxel(landmarks=landmarks, affine=affine)
+    nifti_data, _, voxels = dataLoader.load_data(image_name=image_name)
 
     point_filter = ['R', 'RLC', 'RNC']
 
     rotated_image, rotated_voxels = align_surface(nifti_data, voxels, point_filter)
-
 
     # Project RCI onto plane.
     y_level = rotated_voxels['R'][1]
@@ -237,24 +206,18 @@ def create_slice_app(image_name, dataLoader):
         new_points.append(new_point)
     rotated_voxels['RCI'] = new_points
 
-    app = create_slice_viewer(rotated_image, rotated_voxels)
+    app = _create_slice_viewer(rotated_image, rotated_voxels)
     app.run_server(debug=True)
 
 def view_curve(image_name, dataLoader):
-    image, affine, landmarks = dataLoader.load_data(image_name=image_name)
+    image, affine, voxel_landmarks = dataLoader.load_data(image_name=image_name)
 
-    landmarks = ras_to_lps(landmarks)
-    print("Image shape: {}".format(image.shape))
-    orientation = aff2axcodes(affine)
-    print("Image Orientation is: ", orientation)
-    voxel_landmarks = world_to_voxel(landmarks=landmarks, affine=affine)
-    #landmarks = vis.ras_to_lps(landmarks)
     geometry = geom.LeafletGeometry(voxel_landmarks)
     geometry.calculate_bezier_curves()
 
     print("Average error in transformed image {} is {}".format(image_name, geometry.get_average_mse()))
     geometry.plot(plot_label_points=True, plot_control_points=True)
-    geometry = geom.LeafletGeometry(landmarks=landmarks)
+    geometry = geom.LeafletGeometry(landmarks=voxel_landmarks)
     geometry.calculate_bezier_curves()
 
     print("Average error in rps image {} is {}".format(image_name, geometry.get_average_mse()))
