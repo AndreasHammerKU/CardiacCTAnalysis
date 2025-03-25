@@ -113,7 +113,7 @@ class BaseUNetTrainer:
         output_channels = 1
         
         model = UNet3D(in_channels=input_channels, out_channels=output_channels, 
-                init_features=16)
+                init_features=16).to(self.device)
         
         criterion = nn.MSELoss()  # Mean Squared Error loss for regression
         optimizer = optim.Adam(model.parameters(), lr=1e-4)
