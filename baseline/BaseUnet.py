@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from torch.utils.data import DataLoader
 from baseline.BaseEnvironment import MedicalImageEnvironment
 from matplotlib import pyplot as plt
@@ -13,6 +14,7 @@ class BaseUNetTrainer:
         self.image_list = image_list
         self.logger = logger
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.fixed_image_size = 512
 
         self.env = MedicalImageEnvironment(
             dataLoader=dataLoader,
@@ -22,22 +24,40 @@ class BaseUNetTrainer:
         )
 
     def create_distance_fields(self, max_distance=5, granularity=50):
+        self.logger.info("Getting Bounding Boxes")
+        max_x_length = 0
+        max_y_length = 0
+        max_z_length = 0
+        bounding_boxes = []
+        for i in tqdm(range(len(self.image_list))):
+            image_name = self.image_list[i]
+            self.env.get_next_image()
+            self.env.reset()
+            box = self.env.get_bounding_box()
+            bounding_boxes.append(box)
+            max_x_length = max(max_x_length, box[1] - box[0])
+            max_y_length = max(max_y_length, box[3] - box[2])
+            max_z_length = max(max_z_length, box[5] - box[4])
+        
+            
+
         self.logger.info("Creating Distance Fields")
         for i in tqdm(range(len(self.image_list))):
             image_name = self.image_list[i]
             self.env.get_next_image()
             self.env.reset()
-            distance_field = self.env.get_distance_field(max_distance=max_distance, granularity=granularity)
+            distance_field = self.env.get_distance_field(max_distance=max_distance, 
+                                                         granularity=granularity, 
+                                                         box=bounding_boxes[i],
+                                                         shape=(max_x_length, max_y_length, max_z_length))
 
             self.dataLoader.save_distance_field(image_name, distance_field)
     
-    def show_distance_fields(self, image_name, axis=0, slice_index=250):
+    def show_distance_fields(self, image_name, axis=1, slice_index=250):
         distance_field = self.dataLoader.load_distance_field(image_name)
 
         fig, ax = plt.subplots(figsize=(6, 6))
         Nx, Ny, Nz = distance_field.shape
-        axis = 1
-        slice_index = 247
         if axis == 0:  # X-plane
             img = distance_field[slice_index, :, :]
             extent = [0, Ny, 0, Nz]
@@ -48,20 +68,19 @@ class BaseUNetTrainer:
             img = distance_field[:, :, slice_index]
             extent = [0, Nx, 0, Ny]
         
-        ax.imshow(img.T, origin="lower", cmap="magma", extent=extent)
+        ax.imshow(img.T, origin="lower", cmap="magma", extent=extent, vmin=0, vmax=1)
         #ax.scatter(b_x, b_y, color="cyan", s=10, label="Bezier Samples")
         ax.set_title(f"Distance Field Slice (axis={axis}, index={slice_index})")
         ax.legend()
-        plt.colorbar(ax.imshow(img.T, origin="lower", cmap="magma"))
+        plt.colorbar(ax.imshow(img.T, origin="lower", cmap="magma", vmin=0, vmax=1))
         plt.show()
 
     def load_images(self):
-        fixed_image_size = 512
         images = np.zeros((
             len(self.image_list),
-            fixed_image_size,
-            fixed_image_size,
-            fixed_image_size), dtype=np.float32
+            self.fixed_image_size,
+            self.fixed_image_size,
+            self.fixed_image_size), dtype=np.float16
         )
         self.logger.info("Loading training images")
         for i in tqdm(range(len(self.image_list))):
@@ -75,9 +94,9 @@ class BaseUNetTrainer:
         self.logger.info("Loading distance fields")
         distance_fields = np.zeros((
             len(self.image_list),
-            fixed_image_size,
-            fixed_image_size,
-            fixed_image_size), dtype=np.float32
+            self.fixed_image_size,
+            self.fixed_image_size,
+            self.fixed_image_size), dtype=np.float32
         )
         for i in tqdm(range(len(self.image_list))):
             image_name = self.image_list[i]
@@ -86,24 +105,39 @@ class BaseUNetTrainer:
             images[i, :, :, :z_limit] = distance_field
 
         self.distance_fields = torch.tensor(distance_fields, dtype=torch.float32, device=self.device)
-        
 
-
-    def train(self, n_epochs=2, preload_images=False):
+    def train(self, n_epochs=2):
         self.load_images()
         batch_size = len(self.image_list)
         input_channels = 1
         output_channels = 1
-
+        
         model = UNet3D(in_channels=input_channels, out_channels=output_channels, 
-                init_features=32, num_levels=4, num_classes=1)
+                init_features=16)
+        
+        criterion = nn.MSELoss()  # Mean Squared Error loss for regression
+        optimizer = optim.Adam(model.parameters(), lr=1e-4)
         
         for epoch in range(n_epochs):
             model.train()
             self.logger.info(f"Epoch {epoch+1}")
             running_loss = 0.0
-
             print(self.train_data.shape)
+            for i in range(len(self.image_list)):
+                optimizer.zero_grad()
+                outputs = model(self.train_data[i].unsqueeze(0).unsqueeze(0))
+                print(outputs.shape)
+                loss = criterion(outputs, self.distance_fields[i])
+
+                loss.backwards()
+
+                optimizer.step()
+
+                running_loss += loss.item()
+
+            self.logger.info(f"Epoch {epoch+1}: loss {running_loss/len(self.image_list)}")
+        
+        torch.save(model.state_dict(), 'Unet.pth')
 
 class UNet3D(nn.Module):
     def __init__(self, in_channels, out_channels, init_features=32):

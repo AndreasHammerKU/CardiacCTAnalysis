@@ -187,7 +187,7 @@ class MedicalImageEnvironment(gym.Env):
 
         return error      
     
-    def get_distance_field(self, max_distance=5, granularity=50):
+    def get_distance_field(self, max_distance=5, granularity=50, box=None, shape=None):
         bezier_points = np.zeros((
             self.agents * granularity,
             self.dims
@@ -221,6 +221,25 @@ class MedicalImageEnvironment(gym.Env):
 
         # Reshape back to 3D grid
         return distances.reshape(Nx, Ny, Nz)
+    
+    def get_bounding_box(self, padding=20):
+        points = self._p0 + self._p2
+        min_x = int(min(p[0] for p in points))
+        max_x = int(max(p[0] for p in points))
+        min_y = int(min(p[1] for p in points))
+        max_y = int(max(p[1] for p in points))
+        min_z = int(min(p[2] for p in points))
+        max_z = int(max(p[2] for p in points))
+
+        min_x = max(0, min_x - padding)
+        min_y = max(0, min_y - padding)
+        min_z = max(0, min_z - padding)
+        max_x = min(self.image.shape[0], max_x + padding)
+        max_y = min(self.image.shape[1], max_y + padding)
+        max_z = min(self.image.shape[2], max_z + padding)
+
+        return np.array([min_x, max_x, min_y, max_y, min_z, max_z], dtype=np.int16)
+
 
 def bezier_curve(p0, p1, p2, t):
     curve = np.outer((1 - t) ** 2, p0) + np.outer(2 * (1 - t) * t, p1) + np.outer(t ** 2, p2)

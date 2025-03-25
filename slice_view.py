@@ -15,10 +15,8 @@ def main():
         logger=logger
     )
 
-    trainer.create_distance_fields()
-    trainer.train()
     #trainer.create_distance_fields()
-    #trainer.show_distance_fields('n1')
+    trainer.train()
     #viz.create_slice_app('n2', dataLoader=dataLoader)
 
 if __name__ == "__main__":
