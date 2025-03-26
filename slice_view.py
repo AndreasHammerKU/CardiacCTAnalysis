@@ -16,9 +16,9 @@ def main():
     )
 
     #trainer.create_distance_fields()
-    #trainer.train()
-    trainer.load_model()
-    trainer.show_DF_prediction('n11')
+    trainer.train()
+    #trainer.load_model()
+    #trainer.show_DF_prediction('n11')
     #viz.create_slice_app(image_name='n2', dataLoader=dataLoader)
 
 if __name__ == "__main__":

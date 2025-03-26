@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
 from baseline.BaseEnvironment import MedicalImageEnvironment
 from matplotlib import pyplot as plt
 from tqdm import tqdm
@@ -58,7 +57,7 @@ class BaseUNetTrainer:
         predicted_DF = self.model(input_data.unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
         self.model.train()
 
-        _show_distance_fields(predicted_DF.detach().numpy(), axis=axis, slice_index=slice_index)
+        _show_distance_fields(predicted_DF.detach().cpu().numpy(), axis=axis, slice_index=slice_index)
         _show_distance_fields(true_DF, axis=axis, slice_index=slice_index)
 
 
