@@ -53,11 +53,9 @@ class BaseUNetTrainer:
         image, _, _ = self.dataLoader.load_data(image_name=image_name)
         true_DF = self.dataLoader.load_distance_field(image_name)
         input_data = torch.tensor(image, dtype=torch.float32, device=self.device)
-        print("True_DF: ", true_DF.shape)
 
         self.model.eval()
         predicted_DF = self.model(input_data.unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
-        print("predict_DF: ", predicted_DF.shape)
         self.model.train()
 
         _show_distance_fields(predicted_DF.detach().numpy(), axis=axis, slice_index=slice_index)
