@@ -184,7 +184,7 @@ class MedicalImageEnvironment(gym.Env):
 
         return error      
     
-    def get_distance_field(self, max_distance=5, granularity=50, box=None, shape=None):
+    def get_distance_field(self, max_distance=5, granularity=50):
         bezier_points = np.zeros((
             self.agents * granularity,
             self.dims

@@ -24,32 +24,13 @@ class BaseUNetTrainer:
         )
 
     def create_distance_fields(self, max_distance=5, granularity=50):
-        self.logger.info("Getting Bounding Boxes")
-        max_x_length = 0
-        max_y_length = 0
-        max_z_length = 0
-        bounding_boxes = []
-        for i in tqdm(range(len(self.image_list))):
-            image_name = self.image_list[i]
-            self.env.get_next_image()
-            self.env.reset()
-            box = self.env.get_bounding_box()
-            bounding_boxes.append(box)
-            max_x_length = max(max_x_length, box[1] - box[0])
-            max_y_length = max(max_y_length, box[3] - box[2])
-            max_z_length = max(max_z_length, box[5] - box[4])
-        
-            
-
         self.logger.info("Creating Distance Fields")
         for i in tqdm(range(len(self.image_list))):
             image_name = self.image_list[i]
             self.env.get_next_image()
             self.env.reset()
             distance_field = self.env.get_distance_field(max_distance=max_distance, 
-                                                         granularity=granularity, 
-                                                         box=bounding_boxes[i],
-                                                         shape=(max_x_length, max_y_length, max_z_length))
+                                                         granularity=granularity)
 
             self.dataLoader.save_distance_field(image_name, distance_field)
     
@@ -111,7 +92,7 @@ class BaseUNetTrainer:
         output_channels = 1
         
         model = UNet3D(in_channels=input_channels, out_channels=output_channels, 
-                init_features=16).to(self.device)
+                init_features=8).to(self.device)
         
         criterion = nn.MSELoss()  # Mean Squared Error loss for regression
         optimizer = optim.Adam(model.parameters(), lr=1e-4)
@@ -148,6 +129,11 @@ class UNet3D(nn.Module):
         self.enc2 = self.conv_block(features, features * 2)
         self.enc3 = self.conv_block(features * 2, features * 4)
         self.enc4 = self.conv_block(features * 4, features * 8)
+
+        self.max1 = self.max_pool_layer()
+        self.max2 = self.max_pool_layer()
+        self.max3 = self.max_pool_layer()
+        self.max4 = self.max_pool_layer()
         
         # Bottleneck
         self.bottleneck = self.conv_block(features * 8, features * 16)
@@ -157,6 +143,11 @@ class UNet3D(nn.Module):
         self.upconv3 = self.upconv_block(features * 8, features * 4)
         self.upconv2 = self.upconv_block(features * 4, features * 2)
         self.upconv1 = self.upconv_block(features * 2, features)
+
+        self.dec1 = self.conv_block(features * 16, features * 8)
+        self.dec2 = self.conv_block(features * 8, features * 4)
+        self.dec3 = self.conv_block(features * 4, features * 2)
+        self.dec4 = self.conv_block(features * 2, features)
         
         # Final output layer (1x1x1 convolution)
         self.final_conv = nn.Conv3d(features, out_channels, kernel_size=1)
@@ -176,7 +167,13 @@ class UNet3D(nn.Module):
             nn.Dropout3d(0.2)
         )
         return block
-
+    
+    def max_pool_layer(self):
+        block = nn.Sequential(
+            nn.MaxPool3d(kernel_size=2, stride=2)
+        )
+        return block
+    
     def upconv_block(self, in_channels, out_channels):
         """Upsample and apply a convolutional block."""
         block = nn.Sequential(
@@ -188,20 +185,30 @@ class UNet3D(nn.Module):
 
     def forward(self, x):
         # Encoder forward pass
+        print("x shape: ", x.shape)
         enc1 = self.enc1(x)
+        print("enc 1 shape: ", enc1.shape)
         enc2 = self.enc2(enc1)
+        print("enc 2 shape: ", enc2.shape)
         enc3 = self.enc3(enc2)
+        print("enc 3 shape: ", enc3.shape)
         enc4 = self.enc4(enc3)
+        print("enc 4 shape: ", enc4.shape)
 
         # Bottleneck
         bottleneck = self.bottleneck(enc4)
+        print("bottleneck shape: ", bottleneck.shape)
 
         # Decoder forward pass with skip connections
         upconv4 = self.upconv4(bottleneck)
+        print("upconv4 shape: ", upconv4.shape)
         upconv4 = torch.cat([upconv4, enc4], dim=1)  # Skip connection
+        print("upconv4 shape: ", upconv4.shape)
 
         upconv3 = self.upconv3(upconv4)
+        print("upconv3 shape: ", upconv3.shape)
         upconv3 = torch.cat([upconv3, enc3], dim=1)  # Skip connection
+        print("upconv3 shape: ", upconv3.shape)
 
         upconv2 = self.upconv2(upconv3)
         upconv2 = torch.cat([upconv2, enc2], dim=1)  # Skip connection

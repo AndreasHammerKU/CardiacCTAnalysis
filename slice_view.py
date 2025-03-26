@@ -16,8 +16,8 @@ def main():
     )
 
     #trainer.create_distance_fields()
-    #trainer.train()
-    viz.create_slice_app(image_name='n2', dataLoader=dataLoader)
+    trainer.train()
+    #viz.create_slice_app(image_name='n2', dataLoader=dataLoader)
 
 if __name__ == "__main__":
     main()
