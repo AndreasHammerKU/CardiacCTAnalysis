@@ -46,7 +46,7 @@ class BaseUNetTrainer:
     
     def show_DF_from_file(self, image_name, axis=1, slice_index=64):
         distance_field = self.dataLoader.load_distance_field(image_name)
-        _show_distance_fields(distance_field, axis=axis, slice_index=slice_index)
+        _show_distance_fields([distance_field], axis=axis, slice_index=slice_index)
 
     def show_DF_prediction(self, image_name, axis=1, slice_index=64):
         image, _, _ = self.dataLoader.load_data(image_name=image_name)
@@ -57,8 +57,8 @@ class BaseUNetTrainer:
         predicted_DF = self.model(input_data.unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
         self.model.train()
 
-        _show_distance_fields(predicted_DF.detach().cpu().numpy(), axis=axis, slice_index=slice_index)
-        _show_distance_fields(true_DF, axis=axis, slice_index=slice_index)
+        images = [predicted_DF.detach().cpu().numpy(), true_DF, image]
+        _show_distance_fields(images, axis=axis, slice_index=slice_index)
 
 
     def load_images(self):
@@ -99,39 +99,47 @@ class BaseUNetTrainer:
         for epoch in range(n_epochs):
             self.model.train()
             running_loss = 0.0
-            for i in range(len(self.image_list)):
-                optimizer.zero_grad()
-                # Add singleton batch, channel dimensions and remove them again
-                outputs = self.model(self.train_data[i].unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
-                loss = criterion(outputs, self.distance_fields[i])
+            
+            optimizer.zero_grad()
+            print("Train: ", self.train_data.unsqueeze(1).shape)
+            # Add singleton batch, channel dimensions and remove them again
+            outputs = self.model(self.train_data.unsqueeze(1)).squeeze(1)
+            print("outputs: ", outputs.shape)
+            print("Ground truth: ", self.distance_fields.shape)
+            loss = criterion(outputs, self.distance_fields)
 
-                loss.backward()
+            loss.backward()
 
-                optimizer.step()
+            optimizer.step()
 
-                running_loss += loss.item()
+            running_loss += loss.item()
 
-            self.logger.info(f"Epoch {epoch+1}: loss {running_loss/len(self.image_list)}")
+            self.logger.info(f"Epoch {epoch+1}: loss {running_loss}")
         
         torch.save(self.model.state_dict(), self.model_path)
 
-def _show_distance_fields(distance_field, axis=1, slice_index=64):
-    _, ax = plt.subplots(figsize=(6, 6))
-    Nx, Ny, Nz = distance_field.shape
-    if axis == 0:  # X-plane
-        img = distance_field[slice_index, :, :]
-        extent = [0, Ny, 0, Nz]
-    elif axis == 1:  # Y-plane
-        img = distance_field[:, slice_index, :]
-        extent = [0, Nx, 0, Nz]
-    else:  # Z-plane
-        img = distance_field[:, :, slice_index]
-        extent = [0, Nx, 0, Ny]
-    
-    ax.imshow(img.T, origin="lower", cmap="magma", extent=extent, vmin=0, vmax=1)
-    #ax.scatter(b_x, b_y, color="cyan", s=10, label="Bezier Samples")
-    ax.set_title(f"Distance Field Slice (axis={axis}, index={slice_index})")
-    ax.legend()
+def _show_distance_fields(distance_fields, axis=1, slice_index=64):
+    num_fields = len(distance_fields)
+    _, axes = plt.subplots(1, num_fields, figsize=(6* num_fields, 6))
+    Nx, Ny, Nz = distance_fields[0].shape
+
+    for i in range(num_fields):
+        distance_field = distance_fields[i]
+        ax = axes[i]
+        if axis == 0:  # X-plane
+            img = distance_field[slice_index, :, :]
+            extent = [0, Ny, 0, Nz]
+        elif axis == 1:  # Y-plane
+            img = distance_field[:, slice_index, :]
+            extent = [0, Nx, 0, Nz]
+        else:  # Z-plane
+            img = distance_field[:, :, slice_index]
+            extent = [0, Nx, 0, Ny]
+
+        ax.imshow(img.T, origin="lower", cmap="magma", extent=extent, vmin=0, vmax=1)
+        #ax.scatter(b_x, b_y, color="cyan", s=10, label="Bezier Samples")
+        ax.set_title(f"Distance Field Slice (axis={axis}, index={slice_index})")
+        ax.legend()
     plt.colorbar(ax.imshow(img.T, origin="lower", cmap="magma", vmin=0, vmax=1))
     plt.show()
 
