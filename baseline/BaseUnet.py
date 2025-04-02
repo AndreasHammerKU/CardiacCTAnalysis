@@ -99,19 +99,19 @@ class BaseUNetTrainer:
         for epoch in range(n_epochs):
             self.model.train()
             running_loss = 0.0
-            
-            optimizer.zero_grad()
-            # Add singleton batch, channel dimensions and remove them again
-            outputs = self.model(self.train_data.unsqueeze(1)).squeeze(1)
-            loss = criterion(outputs, self.distance_fields)
+            for i in range(len(self.image_list)):
+                optimizer.zero_grad()
+                # Add singleton batch, channel dimensions and remove them again
+                outputs = self.model(self.train_data[i].unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
+                loss = criterion(outputs, self.distance_fields[i])
 
-            loss.backward()
+                loss.backward()
 
-            optimizer.step()
+                optimizer.step()
 
-            running_loss += loss.item()
+                running_loss += loss.item()
 
-            self.logger.info(f"Epoch {epoch+1}: loss {running_loss}")
+            self.logger.info(f"Epoch {epoch+1}: loss {running_loss/len(self.image_list)}")
         
         torch.save(self.model.state_dict(), self.model_path)
 
