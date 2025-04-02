@@ -101,11 +101,8 @@ class BaseUNetTrainer:
             running_loss = 0.0
             
             optimizer.zero_grad()
-            print("Train: ", self.train_data.unsqueeze(1).shape)
             # Add singleton batch, channel dimensions and remove them again
             outputs = self.model(self.train_data.unsqueeze(1)).squeeze(1)
-            print("outputs: ", outputs.shape)
-            print("Ground truth: ", self.distance_fields.shape)
             loss = criterion(outputs, self.distance_fields)
 
             loss.backward()
