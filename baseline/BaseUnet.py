@@ -57,8 +57,23 @@ class BaseUNetTrainer:
         predicted_DF = self.model(input_data.unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
         self.model.train()
 
-        images = [predicted_DF.detach().cpu().numpy(), true_DF, image]
+        images = [predicted_DF.detach().cpu().numpy(), true_DF]
         _show_distance_fields(images, axis=axis, slice_index=slice_index)
+
+        _, ax = plt.subplots(figsize=(6, 6))
+        Nx, Ny, Nz = image.shape
+        if axis == 0:  # X-plane
+            img = image[slice_index, :, :]
+            extent = [0, Ny, 0, Nz]
+        elif axis == 1:  # Y-plane
+            img = image[:, slice_index, :]
+            extent = [0, Nx, 0, Nz]
+        else:  # Z-plane
+            img = image[:, :, slice_index]
+            extent = [0, Nx, 0, Ny]
+        ax.imshow(img.T, origin="lower", cmap="magma", extent=extent)
+        ax.set_title(f"Image Slice (axis={axis}, index={slice_index})")
+        plt.show()
 
 
     def load_images(self):
@@ -92,9 +107,11 @@ class BaseUNetTrainer:
 
     def train(self, n_epochs=2):
         self.load_images()
-        
-        criterion = nn.MSELoss()  # Mean Squared Error loss for regression
-        optimizer = optim.Adam(self.model.parameters(), lr=1e-4)
+        LEARNING_RATE = 3e-4
+
+        #criterion = nn.MSELoss()  # Mean Squared Error loss for regression
+        criterion = nn.BCEWithLogitsLoss()
+        optimizer = optim.Adam(self.model.parameters(), lr=LEARNING_RATE)
         
         for epoch in range(n_epochs):
             self.model.train()

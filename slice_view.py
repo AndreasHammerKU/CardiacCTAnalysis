@@ -15,9 +15,9 @@ def main():
         logger=logger
     )
 
-    trainer.train(n_epochs=100)
-    #trainer.load_model()
-    #trainer.show_DF_prediction('n11')
+    #trainer.train(n_epochs=100)
+    trainer.load_model()
+    trainer.show_DF_prediction('n11', slice_index=100)
     #viz.create_slice_app(image_name='n2', dataLoader=dataLoader)
 
 if __name__ == "__main__":
