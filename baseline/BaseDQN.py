@@ -16,48 +16,55 @@ class Network3D(nn.Module):
         elif self.experiment == Experiment.SHARE_PAIRWISE:
             self.location_fc = nn.Linear(in_features=self.agents**2, out_features=32)
 
-        self.conv0 = nn.Conv3d(
-            in_channels=n_sample_points,
-            out_channels=16,
-            kernel_size=(3, 3, 3),
-            padding=2,
-            stride=2)
-        self.maxpool0 = nn.MaxPool3d(kernel_size=(2, 2, 2))
-        self.prelu0 = nn.PReLU()
-        self.conv1 = nn.Conv3d(
-            in_channels=16,
-            out_channels=32,
-            kernel_size=(3, 3, 3),
-            padding=2)
-        self.maxpool1 = nn.MaxPool3d(kernel_size=(2, 2, 2))
-        self.prelu1 = nn.PReLU()
-        self.conv2 = nn.Conv3d(
-            in_channels=32,
-            out_channels=32,
-            kernel_size=(3, 3, 3),
-            padding=2)
-        self.maxpool2 = nn.MaxPool3d(kernel_size=(2, 2, 2))
-        self.prelu2 = nn.PReLU()
+        self.conv0 = self.conv_block(in_channels=5, out_channels=16)
+        self.maxpool0 = self.max_pool_layer()
+        self.conv1 = self.conv_block(in_channels=16, out_channels=32)
+        self.maxpool1 = self.max_pool_layer()
+        self.conv2 = self.conv_block(in_channels=32, out_channels=64)
+        self.maxpool2 = self.max_pool_layer()
+        self.conv3 = self.conv_block(in_channels=64, out_channels=64)
+        self.maxpool3 = self.max_pool_layer()
 
+        # (64x2x2x2)
         self.fc1 = nn.ModuleList(
-            [nn.Linear(in_features=864, out_features=128) for _ in range(self.agents)])
+            [nn.Linear(in_features=512, out_features=256) for _ in range(self.agents)])
         self.prelu4 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         
         # Modify fc2 to accept location input
         self.fc2 = nn.ModuleList(
-            [nn.Linear(in_features=128 + 
-                       (32 * (self.experiment != Experiment.WORK_ALONE)), out_features=64) for _ in range(self.agents)])
+            [nn.Linear(in_features=256 + 
+                       (32 * (self.experiment != Experiment.WORK_ALONE)), out_features=128) for _ in range(self.agents)])
         self.prelu5 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         self.fc3 = nn.ModuleList(
-            [nn.Linear(in_features=64, out_features=number_actions) for _ in range(self.agents)])
+            [nn.Linear(in_features=128, out_features=number_actions) for _ in range(self.agents)])
 
         if xavier:
             for module in self.modules():
                 if isinstance(module, (nn.Conv3d, nn.Linear)):
                     torch.nn.init.xavier_uniform_(module.weight)
-
+    
+    def conv_block(self, in_channels, out_channels):
+        """Convolutional block with two 3D convolutions, batchnorm, and dropout."""
+        block = nn.Sequential(
+            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm3d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Dropout3d(0.2),
+            nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm3d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Dropout3d(0.2)
+        )
+        return block
+    
+    def max_pool_layer(self):
+        block = nn.Sequential(
+            nn.MaxPool3d(kernel_size=2, stride=2)
+        )
+        return block
+    
     def forward(self, state, location=None):
         """
         Input:
@@ -80,21 +87,22 @@ class Network3D(nn.Module):
 
         output = []
         for i in range(self.agents):
-            x = state[:, i] if batched else state[i]
+            
+            x = state[:, i] if batched else state[i].unsqueeze(0)
             x = self.conv0(x)
-            x = self.prelu0(x)
             x = self.maxpool0(x)
             x = self.conv1(x)
-            x = self.prelu1(x)
             x = self.maxpool1(x)
             x = self.conv2(x)
-            x = self.prelu2(x)
             x = self.maxpool2(x)
-            x = x.view(-1, 864)
+            x = self.conv3(x)
+            x = self.maxpool3(x)
+            x = x.view(-1, 512)
             #print(x.shape)
             # Pass through first FC layer
             x = self.fc1[i](x)
             x = self.prelu4[i](x)
+            print(x.shape, location_data.shape)
             if self.experiment != Experiment.WORK_ALONE:
                 x = torch.cat([x, location_data], dim=-1)
             #print(x.shape)
@@ -121,31 +129,18 @@ class CommNet(nn.Module):
         elif self.experiment == Experiment.SHARE_PAIRWISE:
             self.location_fc = nn.Linear(in_features=self.agents**2, out_features=32)
 
-        self.conv0 = nn.Conv3d(
-            in_channels=n_sample_points,
-            out_channels=16,
-            kernel_size=(3, 3, 3),
-            padding=2,
-            stride=2)
-        self.maxpool0 = nn.MaxPool3d(kernel_size=(2, 2, 2))
-        self.prelu0 = nn.PReLU()
-        self.conv1 = nn.Conv3d(
-            in_channels=16,
-            out_channels=32,
-            kernel_size=(3, 3, 3),
-            padding=2)
-        self.maxpool1 = nn.MaxPool3d(kernel_size=(2, 2, 2))
-        self.prelu1 = nn.PReLU()
-        self.conv2 = nn.Conv3d(
-            in_channels=32,
-            out_channels=32,
-            kernel_size=(3, 3, 3),
-            padding=2)
-        self.maxpool2 = nn.MaxPool3d(kernel_size=(2, 2, 2))
-        self.prelu2 = nn.PReLU()
+
+        self.conv0 = self.conv_block(in_channels=5, out_channels=16)
+        self.maxpool0 = self.max_pool_layer()
+        self.conv1 = self.conv_block(in_channels=16, out_channels=32)
+        self.maxpool1 = self.max_pool_layer()
+        self.conv2 = self.conv_block(in_channels=32, out_channels=64)
+        self.maxpool2 = self.max_pool_layer()
+        self.conv3 = self.conv_block(in_channels=64, out_channels=64)
+        self.maxpool3 = self.max_pool_layer()
 
         self.fc1 = nn.ModuleList(
-            [nn.Linear(in_features=(864 + (32 * (self.experiment != Experiment.WORK_ALONE))) * 2, out_features=256) for _ in range(self.agents)])
+            [nn.Linear(in_features=(512 + (32 * (self.experiment != Experiment.WORK_ALONE))) * 2, out_features=256) for _ in range(self.agents)])
         self.prelu4 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         
@@ -190,17 +185,16 @@ class CommNet(nn.Module):
         
         input2 = []
         for i in range(self.agents):
-            x = state[:, i] if batched else state[i]
+            x = state[:, i] if batched else state[i].unsqueeze(0)
             x = self.conv0(x)
-            x = self.prelu0(x)
             x = self.maxpool0(x)
             x = self.conv1(x)
-            x = self.prelu1(x)
             x = self.maxpool1(x)
             x = self.conv2(x)
-            x = self.prelu2(x)
             x = self.maxpool2(x)
-            x = x.view(-1, 864)
+            x = self.conv3(x)
+            x = self.maxpool3(x)
+            x = x.view(-1, 512)
             if self.experiment != Experiment.WORK_ALONE:
                 x = torch.cat([x, location_data], dim=-1)
             input2.append(x)
@@ -249,3 +243,23 @@ class CommNet(nn.Module):
             output.append(x)
         output = torch.stack(output, dim=1)
         return output
+    
+    def conv_block(self, in_channels, out_channels):
+        """Convolutional block with two 3D convolutions, batchnorm, and dropout."""
+        block = nn.Sequential(
+            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm3d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Dropout3d(0.2),
+            nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm3d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Dropout3d(0.2)
+        )
+        return block
+    
+    def max_pool_layer(self):
+        block = nn.Sequential(
+            nn.MaxPool3d(kernel_size=2, stride=2)
+        )
+        return block
