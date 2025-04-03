@@ -98,14 +98,11 @@ class Network3D(nn.Module):
             x = self.conv3(x)
             x = self.maxpool3(x)
             x = x.view(-1, 512)
-            #print(x.shape)
             # Pass through first FC layer
             x = self.fc1[i](x)
             x = self.prelu4[i](x)
-            print(x.shape, location_data.shape)
             if self.experiment != Experiment.WORK_ALONE:
                 x = torch.cat([x, location_data], dim=-1)
-            #print(x.shape)
 
             # Pass through modified second FC layer
             x = self.fc2[i](x)
@@ -199,7 +196,6 @@ class CommNet(nn.Module):
                 x = torch.cat([x, location_data], dim=-1)
             input2.append(x)
         input2 = torch.stack(input2, dim=1)
-        #print("input 2: ", input2.shape)
         # Communication layers
         if self.attention:
             comm = torch.cat([torch.sum((input2.transpose(1, 2) * nn.Softmax(dim=0)(self.comm_att1[i])), axis=2).unsqueeze(0)
@@ -227,7 +223,6 @@ class CommNet(nn.Module):
             x = self.fc2[i](torch.cat((x, comm[i]), axis=-1))
             input4.append(self.prelu5[i](x))
         input4 = torch.stack(input4, dim=1)
-        #print("input 4: ", x.shape)
         
         if self.attention:
             comm = torch.cat([torch.sum((input4.transpose(1, 2) * nn.Softmax(dim=0)(self.comm_att3[i])), axis=2).unsqueeze(0)

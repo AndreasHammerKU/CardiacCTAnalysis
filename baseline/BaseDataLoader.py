@@ -91,9 +91,7 @@ class DataLoader():
 
         # Offset represents where the crop starts in the original image
         offset = tuple(min_coords)
-        #print("Landmarks before: {}, centroid: {}, offset: {}".format(landmarks, centroid, offset))
         landmarks = _map_landmarks(landmarks, _move_landmarks, offset)
-        #print("Landmarks after: ", landmarks)
         return crop, landmarks
 
 def _map_landmarks(dict: dict, function, *args, **kwargs):
