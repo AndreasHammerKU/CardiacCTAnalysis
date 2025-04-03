@@ -112,7 +112,6 @@ class DQNAgent:
         # Compute the average reward across agents for each transition
         rewards += torch.mean(rewards, axis=1).unsqueeze(1).repeat(1, rewards.shape[1])
 
-        #print(locations.shape)
         locations = torch.cat([l.unsqueeze(0) for l in batch.location], dim=0) if self.experiment != Experiment.WORK_ALONE else None
         next_locations = torch.cat([l.unsqueeze(0) for l in batch.next_location], dim=0) if self.experiment != Experiment.WORK_ALONE else None
         
@@ -122,7 +121,6 @@ class DQNAgent:
         with torch.no_grad():
             next_states_values = self.target_net(next_states, next_locations).view(-1, self.agents, self.n_actions).max(-1)[0]
         
-        #print(dones.squeeze(-1).shape, next_states_values.shape)
         next_states_values = (1 - dones.squeeze(-1)) * next_states_values
 
         # Bellman equation with averaged rewards

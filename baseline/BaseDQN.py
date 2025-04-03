@@ -16,13 +16,13 @@ class Network3D(nn.Module):
         elif self.experiment == Experiment.SHARE_PAIRWISE:
             self.location_fc = nn.Linear(in_features=self.agents**2, out_features=32)
 
-        self.conv0 = self.conv_block(in_channels=5, out_channels=16)
+        self.conv0 = self.conv_block(in_channels=5, out_channels=8)
         self.maxpool0 = self.max_pool_layer()
-        self.conv1 = self.conv_block(in_channels=16, out_channels=32)
+        self.conv1 = self.conv_block(in_channels=8, out_channels=16)
         self.maxpool1 = self.max_pool_layer()
-        self.conv2 = self.conv_block(in_channels=32, out_channels=64)
+        self.conv2 = self.conv_block(in_channels=16, out_channels=32)
         self.maxpool2 = self.max_pool_layer()
-        self.conv3 = self.conv_block(in_channels=64, out_channels=64)
+        self.conv3 = self.conv_block(in_channels=32, out_channels=64)
         self.maxpool3 = self.max_pool_layer()
 
         # (64x2x2x2)
@@ -49,10 +49,6 @@ class Network3D(nn.Module):
         """Convolutional block with two 3D convolutions, batchnorm, and dropout."""
         block = nn.Sequential(
             nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm3d(out_channels),
-            nn.ReLU(inplace=True),
-            nn.Dropout3d(0.2),
-            nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
             nn.BatchNorm3d(out_channels),
             nn.ReLU(inplace=True),
             nn.Dropout3d(0.2)
@@ -127,13 +123,13 @@ class CommNet(nn.Module):
             self.location_fc = nn.Linear(in_features=self.agents**2, out_features=32)
 
 
-        self.conv0 = self.conv_block(in_channels=5, out_channels=16)
+        self.conv0 = self.conv_block(in_channels=5, out_channels=8)
         self.maxpool0 = self.max_pool_layer()
-        self.conv1 = self.conv_block(in_channels=16, out_channels=32)
+        self.conv1 = self.conv_block(in_channels=8, out_channels=16)
         self.maxpool1 = self.max_pool_layer()
-        self.conv2 = self.conv_block(in_channels=32, out_channels=64)
+        self.conv2 = self.conv_block(in_channels=16, out_channels=32)
         self.maxpool2 = self.max_pool_layer()
-        self.conv3 = self.conv_block(in_channels=64, out_channels=64)
+        self.conv3 = self.conv_block(in_channels=32, out_channels=64)
         self.maxpool3 = self.max_pool_layer()
 
         self.fc1 = nn.ModuleList(
@@ -243,10 +239,6 @@ class CommNet(nn.Module):
         """Convolutional block with two 3D convolutions, batchnorm, and dropout."""
         block = nn.Sequential(
             nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm3d(out_channels),
-            nn.ReLU(inplace=True),
-            nn.Dropout3d(0.2),
-            nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
             nn.BatchNorm3d(out_channels),
             nn.ReLU(inplace=True),
             nn.Dropout3d(0.2)
