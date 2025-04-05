@@ -214,7 +214,7 @@ class MedicalImageEnvironment(gym.Env):
         distances, _ = tree.query(grid_points)
 
         # Normalize distances to [0, 1]
-        distances = np.clip(1 - distances / max_distance, 0, 1)
+        distances = np.where(distances <= max_distance, 1, 0)
 
         # Reshape back to 3D grid
         return distances.reshape(Nx, Ny, Nz)

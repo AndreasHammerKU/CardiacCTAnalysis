@@ -136,7 +136,8 @@ def _show_distance_fields(distance_fields, axis=1, slice_index=64):
     num_fields = len(distance_fields)
     _, axes = plt.subplots(1, num_fields, figsize=(6* num_fields, 6))
     Nx, Ny, Nz = distance_fields[0].shape
-
+    if num_fields == 1:
+        axes = [axes]
     for i in range(num_fields):
         distance_field = distance_fields[i]
         ax = axes[i]
