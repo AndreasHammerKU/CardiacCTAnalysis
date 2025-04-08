@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+import os
+import constants as c
 import torch.optim as optim
 import random, math
 import numpy as np
@@ -11,14 +13,15 @@ from utils.parser import Experiment
 import matplotlib.pyplot as plt
 
 class DQNAgent:
-    def __init__(self,  state_dim, 
-                        action_dim,
+    def __init__(self,  state_dim : int, 
+                        action_dim : int,
                         train_environment=None,
                         eval_environment=None,
                         test_environment=None, 
-                        logger=None, 
+                        logger=None,
+                        dataLoader=None, 
                         task="train", 
-                        model_path=None,
+                        model_name=None,
                         model_type="Network3D",
                         attention=False,
                         experiment=Experiment.WORK_ALONE,
@@ -33,13 +36,15 @@ class DQNAgent:
                         evaluation_steps=30,
                         episodes=50,
                         image_interval=1,
-                        evaluation_interval=10):
+                        evaluation_interval=10,
+                        use_unet=False):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.env = train_environment
         self.experiment = experiment
         self.eval_env = eval_environment
         self.test_env = test_environment
         self.logger = logger
+        self.dataLoader = dataLoader
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.gamma = gamma
@@ -57,25 +62,33 @@ class DQNAgent:
         self.eval_steps = evaluation_steps
         self.model_type = model_type
         self.attention = attention
+        self.use_unet = use_unet
+        self.model_name = model_name
         if model_type == "Network3D":
             self.policy_net = Network3D(agents=6, 
                       n_sample_points=self.n_sample_points, 
                       number_actions=self.n_actions,
+                      use_unet=self.use_unet,
                       attention=self.attention,
                       experiment=self.experiment).to(self.device)
             self.target_net = Network3D(agents=6, 
                       n_sample_points=self.n_sample_points, 
                       number_actions=self.n_actions,
+                      use_unet=self.use_unet,
                       attention=self.attention,
                       experiment=self.experiment).to(self.device)
         elif model_type == "CommNet":
             self.policy_net = CommNet(agents=6, 
                       n_sample_points=self.n_sample_points, 
                       number_actions=self.n_actions,
+                      use_unet=self.use_unet,
+                      attention=self.attention,
                       experiment=self.experiment).to(self.device)
             self.target_net = CommNet(agents=6, 
                       n_sample_points=self.n_sample_points, 
                       number_actions=self.n_actions,
+                      use_unet=self.use_unet,
+                      attention=self.attention,
                       experiment=self.experiment).to(self.device)
 
         self.target_net.load_state_dict(self.policy_net.state_dict())
@@ -83,10 +96,11 @@ class DQNAgent:
         self.memory = ReplayMemory(capacity=1000)
 
         if task != "train":
-            assert model_path is not None, "Model path cannot be none"
-            self.policy_net.load_state_dict(torch.load(model_path, map_location=self.device))
+            assert model_name is not None, "Model named cannot be none"
+            
+            self.policy_net.load_state_dict(self.dataLoader.load_model(model_name))
             self.policy_net.eval()
-            self.logger.debug(f"Loaded Policy net from {model_path}")
+            self.logger.debug(f"Loaded Policy net {model_name}")
 
     def select_action(self, state, location):
         sample = random.random()
@@ -194,7 +208,7 @@ class DQNAgent:
                 closest_point = np.minimum(closest_point, current_distances)
                 furthest_point = np.maximum(furthest_point, current_distances)
 
-            errors = self.env.get_curve_error()
+            errors = self.env.get_curve_error(t_values=np.linspace(0,1, 100))
             self.logger.info(
                     f"Episode {episode + 1}: Total Reward = {total_reward:.2f} | Final Avg Distance {np.mean(current_distances):.2f} | "
                     f"Distances in mm {np.round(errors,2)} | Avg Closest Point = {np.mean(closest_point):.2f} | "
@@ -203,9 +217,15 @@ class DQNAgent:
 
             if (episode + 1) % self.eval_interval == 0:
                 self.logger.info(f"===== Validation Run =====")
-                self._evaluate_dqn(self.eval_env)      
-
-        torch.save(self.policy_net.state_dict(), f"latest-model-{self.model_type}-{self.experiment.name}.pt")
+                self._evaluate_dqn(self.eval_env)
+                if self.model_name is not None:
+                    self.dataLoader.save_model(f"{self.model_name}-episode-{episode+1}", self.policy_net.state_dict())
+                else:
+                    self.dataLoader.save_model(f"{self.model_type}-{self.experiment.name}-episode-{episode+1}", self.policy_net.state_dict())
+        if self.model_name is not None:
+            self.dataLoader.save_model(self.model_name, self.policy_net.state_dict())
+        else:
+            self.dataLoader.save_model(f"{self.model_type}-{self.experiment.name}", self.policy_net.state_dict())
 
     def _evaluate_dqn(self, environment):
         """
@@ -214,7 +234,9 @@ class DQNAgent:
 
         self.policy_net.eval()  # Set the network to evaluation mode
 
-        evaluation_errors = []
+        evaluation_errors_100 = []
+        evaluation_errors_1000 = []
+        evaluation_errors_1 = []
         with torch.no_grad():  # No gradient tracking needed for evaluation
             for episode in range(len(environment.image_list)):
                 environment.get_next_image()
@@ -267,33 +289,23 @@ class DQNAgent:
 
                     self.total_steps += 1
 
-                errors = environment.get_curve_error()
 
-                evaluation_errors.append(errors)
+                errors_100 = environment.get_curve_error(t_values=np.linspace(0,1, 100))
+                errors_1000 = environment.get_curve_error(t_values=np.linspace(0,1, 1000))
+                errors_1 = environment.get_curve_error(t_values=np.array([0.5]))
+                
+                evaluation_errors_100.append(errors_100)
+                evaluation_errors_1000.append(errors_1000)
+                evaluation_errors_1.append(errors_1)
                 #success_counts += found_truth.astype(int)  # Count successes per agent
                 self.logger.info(
                     f"Evaluation Episode {episode + 1}: Total Reward = {total_rewards:.2f} | Final Average Distance = {np.mean(current_distances):.2f} | "
-                    f"Error in mm {np.round(errors,2)} | Closest Point = {np.round(closest_distances, 2)} | "
+                    f"Error in mm {np.round(errors_1,2)} | Closest Point = {np.round(closest_distances, 2)} | "
                     f"Furthest Point = {np.round(furthest_distances, 2)}"
                 )
-        
-        error_data = np.concatenate(evaluation_errors)
-
-        max_bin = 10
-        step_size = 0.5
-        bins = np.arange(0, max_bin + step_size, step=step_size)
-        bins = np.append(bins, np.inf)
-
-        hist, bin_edges = np.histogram(error_data, bins=bins)
-        bin_labels = [f"{bin_edges[i]}-{bin_edges[i+1]}" for i in range(len(bin_edges)-2)]
-        bin_labels.append(f"{max_bin}+")
-
-        plt.bar(range(len(hist)), hist, width=0.8, edgecolor="black")
-        plt.xticks(range(len(hist)), bin_labels, rotation=45)
-        plt.xlabel("Errors in mm")
-        plt.ylabel("Frequency")
-        plt.title(f"Histogram of curve error in mm for evaulation run")
-        plt.show()
+        make_boxplot(evaluation_errors_100)
+        make_boxplot(evaluation_errors_1000)
+        make_boxplot(evaluation_errors_1)
 
         avg_closest = closest_distances.mean()
         avg_furthest = furthest_distances.mean()
@@ -305,3 +317,16 @@ class DQNAgent:
 
     def test_dqn(self):
         self._evaluate_dqn(self.test_env)
+
+def make_boxplot(error):
+    error_data = np.concatenate(error)
+    print(error_data)
+    # Sample list of errors
+    # Create the boxplot
+    plt.figure(figsize=(6, 4))
+    plt.boxplot(error_data, vert=True, patch_artist=True, showfliers=True)
+    # Add titles and labels
+    plt.title('Boxplot of Errors of agents to ground truth curve')
+    plt.ylabel('Error Value')
+    # Show the plot
+    plt.show()

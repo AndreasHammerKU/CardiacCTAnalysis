@@ -9,3 +9,5 @@ LABELS_FOLDER = os.path.join(DATASET_FOLDER, 'landmarks')
 ANCHOR_DATAPOINTS = ['R', 'L', 'N', 'RLC', 'RNC', 'LNC']
 
 LABELLED_DATAPOINTS = ['RCI', 'LCI', 'NCI']
+
+MODEL_PATH = os.path.join('.', 'models')

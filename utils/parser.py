@@ -1,5 +1,6 @@
 import argparse
 from enum import Enum
+import yaml
 
 class Experiment(Enum):
     WORK_ALONE = 1
@@ -17,7 +18,8 @@ class Experiment(Enum):
 class ExperimentConfig:
     def __init__(self, model_type="Network3D", 
                        attention=False, 
-                       experiment=Experiment.WORK_ALONE, 
+                       experiment=Experiment.WORK_ALONE,
+                       n_sample_points=5,
                        lr=0.001, 
                        gamma=0.9, 
                        max_epsilon=1.0,
@@ -29,7 +31,9 @@ class ExperimentConfig:
                        evaluation_steps=30,
                        episodes=50,
                        image_interval=1,
-                       evaluation_interval=10):
+                       evaluation_interval=10,
+                       use_unet=False,
+                       unet_init_features=16):
         self.model_type=model_type
         self.attention=attention
         self.experiment=experiment 
@@ -45,90 +49,50 @@ class ExperimentConfig:
         self.episodes=episodes
         self.image_interval=image_interval
         self.evaluation_interval=evaluation_interval
+        self.use_unet=use_unet
+        self.n_sample_points=n_sample_points
+        self.unet_init_features=unet_init_features
+
+def load_config_from_yaml(path: str) -> ExperimentConfig:
+    with open(path, 'r') as file:
+        config_data = yaml.safe_load(file)
+
+    # Convert 'experiment' string to Experiment enum if present
+    if 'experiment' in config_data:
+        config_data['experiment'] = Experiment[config_data['experiment']]
+
+    return ExperimentConfig(**config_data)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="DQN Agent Main Script")
 
+    # Task to perform (train / eval / test)
     parser.add_argument(
         "-t", "--task",
         choices=["train", "eval", "test"],
         required=True,
-        help="Specify the task to run: 'train' for training, 'eval' for evaluation, or 'test' for testing."
-    )
-
-    parser.add_argument(
-        "--samples",
-        type=int,
-        default=5,
-        help="Number of sample points (default: 5)."
+        help="Specify the task to run: 'train', 'eval', or 'test'."
     )
 
     parser.add_argument(
         "-m", "--model",
         type=str,
         default=None,
-        help="Optional path to a pre-trained model file."
+        help="Name of the model to load/save from."
     )
 
     parser.add_argument(
         "-d", "--debug",
         action="store_true",
-        help="Enables debug logs"
+        help="Enable debug mode."
     )
 
+    # Optional overrides for YAML config (if needed)
     parser.add_argument(
-        "-a", "--attention",
-        action="store_true",
-        help="Enables attention in model"
-    )
-
-    parser.add_argument(
-        "--steps", "-s",
-        type=int,
-        default=1000,
-        help="Maximum number of steps per episode (default: 1000)."
-    )
-
-    parser.add_argument(
-        "--episodes", "-e",
-        type=int,
-        default=100,
-        help="Total number of episodes to run (default: 100)."
-    )
-    
-    parser.add_argument(
-        "-i", "--image_interval",
-        type=int,
-        default=1,
-        help="Interval for saving images during training (default: 1)."
-    )
-
-    parser.add_argument(
-        "-p", "--preload",
-        action="store_true",
-        help="Preload images before running (default: False)."
-    )
-
-    parser.add_argument(
-        "--dataset",
+        "--config",
         type=str,
-        default=None,
-        help="Optional path to a pre-trained model file."
-    )
-
-    parser.add_argument(
-        "--model_type",
-        type=str,
-        default="Network3D",
-        help="Network Type."
-    )
-
-    parser.add_argument(
-        "--experiment",
-        type=Experiment.from_string,
-        choices=list(Experiment),
-        required=True,
-        help="Choose an experiment type."
+        default="config.yaml",
+        help="Path to YAML config file (default: config.yaml)."
     )
 
     return parser.parse_args()

@@ -4,19 +4,28 @@ import torch.optim as optim
 from utils.parser import Experiment
 
 class Network3D(nn.Module):
-    def __init__(self, agents, n_sample_points, number_actions, location_dim=3, xavier=True, attention=False, experiment=Experiment.WORK_ALONE):
+    def __init__(self, agents, 
+                       n_sample_points, 
+                       number_actions, 
+                       location_dim=3, 
+                       xavier=True, 
+                       attention=False, 
+                       experiment=Experiment.WORK_ALONE, 
+                       use_unet=False):
+
         super(Network3D, self).__init__()
 
         self.experiment = experiment
         self.agents = agents
         self.n_sample_points = n_sample_points
+        self.use_unet=use_unet
 
         if self.experiment == Experiment.SHARE_POSITIONS:# Dimension of relative locations (assuming 3D points)
             self.location_fc = nn.Linear(in_features=location_dim*agents, out_features=32)
         elif self.experiment == Experiment.SHARE_PAIRWISE:
             self.location_fc = nn.Linear(in_features=self.agents**2, out_features=32)
 
-        self.conv0 = self.conv_block(in_channels=5, out_channels=8)
+        self.conv0 = self.conv_block(in_channels=n_sample_points + (self.use_unet*n_sample_points), out_channels=8)
         self.maxpool0 = self.max_pool_layer()
         self.conv1 = self.conv_block(in_channels=8, out_channels=16)
         self.maxpool1 = self.max_pool_layer()
@@ -110,12 +119,21 @@ class Network3D(nn.Module):
         return output
     
 class CommNet(nn.Module):
-    def __init__(self, agents, n_sample_points, number_actions, location_dim=3, xavier=True, attention=False, experiment=Experiment.WORK_ALONE):
+    def __init__(self, agents, 
+                       n_sample_points, 
+                       number_actions, 
+                       location_dim=3, 
+                       xavier=True, 
+                       attention=False, 
+                       experiment=Experiment.WORK_ALONE,
+                       use_unet=False):
+        
         super(CommNet, self).__init__()
 
         self.experiment = experiment
         self.agents = agents
         self.n_sample_points = n_sample_points
+        self.use_unet=use_unet
 
         if self.experiment == Experiment.SHARE_POSITIONS:# Dimension of relative locations (assuming 3D points)
             self.location_fc = nn.Linear(in_features=location_dim*agents, out_features=32)
@@ -123,7 +141,7 @@ class CommNet(nn.Module):
             self.location_fc = nn.Linear(in_features=self.agents**2, out_features=32)
 
 
-        self.conv0 = self.conv_block(in_channels=5, out_channels=8)
+        self.conv0 = self.conv_block(in_channels=n_sample_points + (self.use_unet*n_sample_points), out_channels=8)
         self.maxpool0 = self.max_pool_layer()
         self.conv1 = self.conv_block(in_channels=8, out_channels=16)
         self.maxpool1 = self.max_pool_layer()

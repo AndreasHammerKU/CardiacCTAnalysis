@@ -7,17 +7,23 @@ from collections import namedtuple
 from tqdm import tqdm
 from typing import Tuple
 import numpy as np
+import torch
+import collections
+
 
 DataEntry = namedtuple('DataEntry',
                         ('image', 'affine', 'landmarks'))
 
 class DataLoader():
-    def __init__(self, dataset_dir="", image_dir="images", landmarks_dir="landmarks", distance_dir="distance_fields"):
+    def __init__(self, dataset_dir="", model_dir=c.MODEL_PATH, image_dir="images", landmarks_dir="landmarks", distance_dir="distance_fields"):
 
+        self.model_dir = model_dir
         self.dataset_dir = dataset_dir
         self.image_dir =  os.path.join(dataset_dir, image_dir)
         self.landmarks_dir = os.path.join(dataset_dir, landmarks_dir)
         self.distance_fields = os.path.join(dataset_dir, distance_dir)
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.preloaded = False
 
@@ -63,6 +69,18 @@ class DataLoader():
         loaded_data = np.load(os.path.join(self.distance_fields, f"d_{image_name}.npz"))
         return loaded_data["distance"]
     
+    def save_model(self, model_name : str, state_dict : collections.OrderedDict):
+        torch.save(state_dict, os.path.join(self.model_dir, f"{model_name}.pt"))
+
+    def load_model(self, model_name : str):
+        return torch.load(os.path.join(self.model_dir, f"{model_name}.pt"), map_location=self.device)
+
+    def save_unet(self, model_name : str, state_dict : collections.OrderedDict):
+        torch.save(state_dict.state_dict(), os.path.join(self.model_dir, f"{model_name}.pth"))
+
+    def load_unet(self, model_name : str):
+        return torch.load(os.path.join(self.model_dir, f"{model_name}.pth"), map_location=self.device)
+
     def _crop_image(self, image: np.ndarray, landmarks: dict, crop_size=(128, 128, 128)) -> Tuple[np.ndarray, dict]: 
         points = []
         for key, value in landmarks.items():
