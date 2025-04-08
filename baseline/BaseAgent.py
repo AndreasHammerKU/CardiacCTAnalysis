@@ -235,7 +235,6 @@ class DQNAgent:
         self.policy_net.eval()  # Set the network to evaluation mode
 
         evaluation_errors_100 = []
-        evaluation_errors_1000 = []
         evaluation_errors_1 = []
         with torch.no_grad():  # No gradient tracking needed for evaluation
             for episode in range(len(environment.image_list)):
@@ -291,11 +290,9 @@ class DQNAgent:
 
 
                 errors_100 = environment.get_curve_error(t_values=np.linspace(0,1, 100))
-                errors_1000 = environment.get_curve_error(t_values=np.linspace(0,1, 1000))
                 errors_1 = environment.get_curve_error(t_values=np.array([0.5]))
                 
                 evaluation_errors_100.append(errors_100)
-                evaluation_errors_1000.append(errors_1000)
                 evaluation_errors_1.append(errors_1)
                 #success_counts += found_truth.astype(int)  # Count successes per agent
                 self.logger.info(
@@ -304,7 +301,6 @@ class DQNAgent:
                     f"Furthest Point = {np.round(furthest_distances, 2)}"
                 )
         make_boxplot(evaluation_errors_100)
-        make_boxplot(evaluation_errors_1000)
         make_boxplot(evaluation_errors_1)
 
         avg_closest = closest_distances.mean()
@@ -320,9 +316,8 @@ class DQNAgent:
 
 def make_boxplot(error):
     error_data = np.concatenate(error)
-    print(error_data)
-    # Sample list of errors
-    # Create the boxplot
+    print(f"average error across all agents is {error_data.mean()} mm")
+
     plt.figure(figsize=(6, 4))
     plt.boxplot(error_data, vert=True, patch_artist=True, showfliers=True)
     # Add titles and labels
