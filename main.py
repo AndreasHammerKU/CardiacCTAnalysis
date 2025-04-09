@@ -5,12 +5,12 @@ from baseline.BaseDataLoader import DataLoader
 from baseline.BaseAgent import DQNAgent
 import constants as c
 
-def train_model(config : ExperimentConfig, model_name, logger, dataLoader):
+def train_model(config : ExperimentConfig, model_name, logger, dataLoader : DataLoader):
     # Train split
     train_env = MedicalImageEnvironment(logger=logger,
                                         task="train",
                                         dataLoader=dataLoader, 
-                                        image_list=['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8', 'n9', 'n10', 'n11', 'n12', 'n13', 'n14', 'n15', 'n16', 'n17', 'n18', 'n19', 'n20', 'n21', 'n22', 'n23', 'n24', 'n25', 'n26', 'n27', 'n28', 'n29', 'n30'], 
+                                        image_list=dataLoader.train, 
                                         n_sample_points=config.n_sample_points,
                                         agents=config.agents,
                                         use_unet=config.use_unet,
@@ -20,7 +20,7 @@ def train_model(config : ExperimentConfig, model_name, logger, dataLoader):
     eval_env = MedicalImageEnvironment(logger=logger,
                                        task="eval",
                                        dataLoader=dataLoader,
-                                       image_list=['n31', 'n32', 'n33', 'n34', 'n35', 'n36', 'n37', 'n38', 'n39', 'n40'],
+                                       image_list=dataLoader.val,
                                        n_sample_points=config.n_sample_points,
                                        agents=config.agents,
                                        use_unet=config.use_unet,
@@ -54,12 +54,12 @@ def train_model(config : ExperimentConfig, model_name, logger, dataLoader):
     train_env.visualize_current_state()
     eval_env.visualize_current_state()
 
-def test_model(config : ExperimentConfig, model_name, logger, dataLoader):
+def test_model(config : ExperimentConfig, model_name, logger, dataLoader : DataLoader, external=False):
     # Evaluation split
     test_env = MedicalImageEnvironment(logger=logger,
                                        task="eval",
                                        dataLoader=dataLoader,
-                                       image_list=['n31', 'n32', 'n33', 'n34', 'n35', 'n36', 'n37', 'n38', 'n39', 'n40'],
+                                       image_list=dataLoader.test_external if external else dataLoader.test,
                                        n_sample_points=config.n_sample_points,
                                        agents=config.agents,
                                        use_unet=config.use_unet,
@@ -95,7 +95,7 @@ def main():
 
     logger = logs.setup_logger(args.debug)
     
-    dataLoader = DataLoader(c.DATASET_FOLDER)
+    dataLoader = DataLoader(c.DATASET_FOLDER, logger=logger)
     
     config = load_config_from_yaml(args.config)
 
@@ -104,6 +104,9 @@ def main():
 
     if args.task == "test":
         test_model(config=config, model_name=args.model, dataLoader=dataLoader, logger=logger)
+
+    if args.task == "test_external":
+        test_model(config=config, model_name=args.model, dataLoader=dataLoader, logger=logger, external=True)
 
 if __name__ == "__main__":
     main()

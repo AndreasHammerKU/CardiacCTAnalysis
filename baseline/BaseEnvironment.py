@@ -19,8 +19,7 @@ class MedicalImageEnvironment(gym.Env):
                        vision_size=(33, 33, 33), 
                        agents=6, 
                        image_list=None, 
-                       logger=None, 
-                       preload_images=False,
+                       logger=None,
                        use_unet=False,
                        unet_init_features=16):
 
@@ -38,9 +37,6 @@ class MedicalImageEnvironment(gym.Env):
                 init_features=unet_init_features).to(self.device)
 
             self.pre_model.load_state_dict(self.dataLoader.load_unet(f"Unet-{unet_init_features}"))
-
-        if preload_images:
-            self.dataLoader.preload_images(image_list)
 
         self.agents = agents
         self.task = task
@@ -77,9 +73,11 @@ class MedicalImageEnvironment(gym.Env):
         
         self.image, self.affine, voxel_landmarks = self.dataLoader.load_data(image_name=image_name)
 
-        input_data = torch.tensor(self.image, dtype=torch.float32, device=self.device)
-        depth_map = self.pre_model(input_data.unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
-        self.binary_mask = (depth_map.detach().cpu().numpy() > 0.5).astype(np.uint8)
+        if self.use_unet:
+            input_data = torch.tensor(self.image, dtype=torch.float32, device=self.device)
+            depth_map = self.pre_model(input_data.unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
+            self.binary_mask = (depth_map.detach().cpu().numpy() > 0.5).astype(np.uint8)
+        
         self.geometry = LeafletGeometry(voxel_landmarks)
         self.geometry.calculate_bezier_curves()
 
@@ -87,8 +85,6 @@ class MedicalImageEnvironment(gym.Env):
         self._ground_truth = np.array(_ground_truth, dtype=np.int16)
         
         self.midpoint = [(self._p0[i] + self._p2[i]) // 2 for i in range(self.agents)]
-        
-        self.logger.debug("Loaded image: {} with ground truth {} and starting point {}".format(image_name, self._ground_truth[0], self.midpoint[0]))
 
     def reset(self):
         self._get_next_episode()

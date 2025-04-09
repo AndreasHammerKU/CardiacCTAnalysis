@@ -9,32 +9,70 @@ from typing import Tuple
 import numpy as np
 import torch
 import collections
-
+import glob
+import random
 
 DataEntry = namedtuple('DataEntry',
                         ('image', 'affine', 'landmarks'))
 
 class DataLoader():
-    def __init__(self, dataset_dir="", model_dir=c.MODEL_PATH, image_dir="images", landmarks_dir="landmarks", distance_dir="distance_fields"):
-
+    def __init__(self, dataset_dir="", logger=None, model_dir=c.MODEL_PATH, include_pathological=True, seed=None):
+        
         self.model_dir = model_dir
         self.dataset_dir = dataset_dir
-        self.image_dir =  os.path.join(dataset_dir, image_dir)
-        self.landmarks_dir = os.path.join(dataset_dir, landmarks_dir)
-        self.distance_fields = os.path.join(dataset_dir, distance_dir)
+        self.logger = logger
+        self.seed = seed
+        
+        image_dir = os.path.join(dataset_dir, c.ROI_FOLDER, c.IMAGE_FOLDER)
+        normal_images = glob.glob(os.path.join(image_dir, c.NORMAL_DATA, '*'))
+        pathological_images = glob.glob(os.path.join(image_dir, c.PATHOLOGICAL_DATA, '*'))
+        external_images = glob.glob(os.path.join(image_dir, c.EXTERNAL_DATA, '*'))
+        self.logger.debug(
+            f"Loaded {len(normal_images)} normal images | "
+            f"Loaded {len(pathological_images)} pathological images | "
+            f"Loaded {len(external_images)} external images"
+        )
+
+        landmark_dir = os.path.join(dataset_dir, c.LANDMARKS_FOLDER)
+        normal_landmarks = glob.glob(os.path.join(landmark_dir, c.NORMAL_DATA, '*'))
+        pathological_landmarks = glob.glob(os.path.join(landmark_dir, c.PATHOLOGICAL_DATA, '*'))
+        external_landmarks = glob.glob(os.path.join(landmark_dir, c.EXTERNAL_DATA, '*'))
+        self.logger.debug(
+            f"Loaded {len(normal_landmarks)} normal landmarks | "
+            f"Loaded {len(pathological_landmarks)} pathological landmarks | "
+            f"Loaded {len(external_landmarks)} external landmarks"
+        )
+    
+        normal_images_dict, normal_landmarks_dict, normal_lookup = self.create_lookup_dicts(normal_images, normal_landmarks)
+        pathological_images_dict, pathological_landmarks_dict, pathological_lookup = self.create_lookup_dicts(pathological_images, pathological_landmarks)
+        external_images_dict, external_landmarks_dict, external_lookup = self.create_lookup_dicts(external_images, external_landmarks)
+
+        self.image_dict = normal_images_dict | pathological_images_dict | external_images_dict
+        self.landmark_dict = normal_landmarks_dict | pathological_landmarks_dict | external_landmarks_dict
+
+        p_train = 0.7
+        p_val = 0.15
+        p_test = 0.15
+        if include_pathological:
+            self.train, self.val, self.test = _split_dataset(normal_lookup + pathological_lookup, p1=p_train, p2=p_val, p3=p_test, seed=self.seed)
+        else:
+            self.train, self.val, self.test = _split_dataset(normal_lookup, p1=p_train, p2=p_val, p3=p_test, seed=self.seed)
+
+        self.logger.debug(f"Train split {self.train} with {len(self.train)} entries")
+        self.logger.debug(f"Validation split {self.val} with {len(self.val)} entries")
+        self.logger.debug(f"Test split {self.test} with {len(self.test)} entries")
+
+        self.test_external = external_lookup
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.preloaded = False
+    def create_lookup_dicts(self, image_paths, landmark_paths):
+        image_dict = {os.path.splitext(os.path.basename(p))[0].replace('.nii', ''): p for p in image_paths}
+        landmark_dict = {os.path.splitext(os.path.basename(p))[0]: p for p in landmark_paths}
 
-    def preload_images(self, image_list):
-        self.preloaded_images = {}
-        for i in tqdm(range(len(image_list))):
-            image_name = image_list[i]
-            nifti_data, affine, landmark_data = self.load_data(image_name=image_name)
-            self.preloaded_images[image_name] = DataEntry(nifti_data, affine, landmark_data)
+        common_keys = set(image_dict.keys()) & set(landmark_dict.keys())
 
-        self.preloaded = True
+        return image_dict, landmark_dict, sorted(list(common_keys))
 
     def _load_nifti(self, file_path):
         nii_img = nib.load(file_path)
@@ -42,15 +80,13 @@ class DataLoader():
         return nii_img.get_fdata(), affine
 
     def load_data(self, image_name, trim_image=True):
-        if self.preloaded:
-            return self.preloaded_images[image_name]
-        
+        self.logger.debug(f"Loading image {image_name}")
         # Load NIfTI file
-        nifti_path = os.path.join(self.image_dir, image_name + '.nii.gz')
+        nifti_path = self.image_dict[image_name]
         nifti_data, affine = self._load_nifti(nifti_path)
 
         # Load landmark JSON
-        with open(os.path.join(self.landmarks_dir, image_name + '.json')) as file:
+        with open(self.landmark_dict[image_name]) as file:
             landmark_data = json.load(file)
 
         landmarks =  _map_landmarks(landmark_data, function=_ras_to_lps)
@@ -129,3 +165,34 @@ def _world_to_voxel(point, inv_affine):
 
 def _move_landmarks(point, offset):
     return (np.array(point) - np.array(offset)).tolist()
+
+def _split_dataset(data, p1=0.7, p2=0.15, p3=0.15, seed=1):
+    """
+    Splits a list into three parts based on given percentages.
+
+    Args:
+        data (list): List to split.
+        p1 (float): Percentage for the first split (e.g., train).
+        p2 (float): Percentage for the second split (e.g., val).
+        p3 (float): Percentage for the third split (e.g., test).
+        seed (int, optional): Seed for shuffling.
+
+    Returns:
+        tuple: Three lists (split1, split2, split3)
+    """
+    assert abs(p1 + p2 + p3 - 1.0) < 1e-6, "Percentages must sum to 1.0"
+
+    rng = random.Random(seed)
+
+    data_shuffled = data.copy()
+    rng.shuffle(data_shuffled)
+
+    total = len(data)
+    n1 = int(total * p1)
+    n2 = int(total * p2)
+
+    split1 = data_shuffled[:n1]
+    split2 = data_shuffled[n1:n1 + n2]
+    split3 = data_shuffled[n1 + n2:]
+
+    return split1, split2, split3

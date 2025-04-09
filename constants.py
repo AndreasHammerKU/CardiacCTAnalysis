@@ -1,10 +1,20 @@
 import os
 
-DATASET_FOLDER = os.path.join(os.path.expanduser("~"), "Desktop", "Dataset", "Data")
+DATASET_FOLDER = os.path.join(os.path.expanduser("~"), "Desktop", "_2025_aortic_valves")
 
-IMAGE_FOLDER = os.path.join(DATASET_FOLDER, 'images')
+ROI_FOLDER = "roi"
 
-LABELS_FOLDER = os.path.join(DATASET_FOLDER, 'landmarks')
+LANDMARKS_FOLDER = "json_markers_info"
+
+IMAGE_FOLDER = "nii_convert"
+
+EXTERNAL_DATA = "External_Hospital"
+
+NORMAL_DATA = "Normal"
+
+PATHOLOGICAL_DATA = "Pathology"
+
+LANDMARKS_MASK_FOLDER = "landmark_masks"
 
 ANCHOR_DATAPOINTS = ['R', 'L', 'N', 'RLC', 'RNC', 'LNC']
 
