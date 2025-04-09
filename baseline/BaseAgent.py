@@ -8,13 +8,12 @@ import numpy as np
 from scipy.special import binom
 from collections import deque
 from baseline.BaseMemory import ReplayMemory, Transition
-from baseline.BaseDQN import Network3D, CommNet
+from baseline.BaseDQN import DQN
 from utils.parser import Experiment
 import matplotlib.pyplot as plt
 
 class DQNAgent:
-    def __init__(self,  state_dim : int, 
-                        action_dim : int,
+    def __init__(self,  action_dim : int,
                         train_environment=None,
                         eval_environment=None,
                         test_environment=None, 
@@ -25,6 +24,7 @@ class DQNAgent:
                         model_type="Network3D",
                         attention=False,
                         experiment=Experiment.WORK_ALONE,
+                        rl_framework="DQN",
                         lr=0.001, 
                         gamma=0.90, 
                         max_epsilon=1.0, 
@@ -45,16 +45,7 @@ class DQNAgent:
         self.test_env = test_environment
         self.logger = logger
         self.dataLoader = dataLoader
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.gamma = gamma
-        self.tau = tau
-        self.max_epsilon = max_epsilon
-        self.min_epsilon = min_epsilon
-        self.decay = decay
         self.agents = agents
-        self.n_actions = self.env.n_actions if task == "train" else self.test_env.n_actions
-        self.n_sample_points = self.env.n_sample_points if task == "train" else self.test_env.n_sample_points
         self.max_steps = max_steps
         self.episodes = episodes
         self.image_interval = image_interval
@@ -62,35 +53,24 @@ class DQNAgent:
         self.eval_steps = evaluation_steps
         self.model_type = model_type
         self.attention = attention
-        self.use_unet = use_unet
         self.model_name = model_name
-        if model_type == "Network3D":
-            self.policy_net = Network3D(agents=6, 
-                      n_sample_points=self.n_sample_points, 
-                      number_actions=self.n_actions,
-                      use_unet=self.use_unet,
-                      attention=self.attention,
-                      experiment=self.experiment).to(self.device)
-            self.target_net = Network3D(agents=6, 
-                      n_sample_points=self.n_sample_points, 
-                      number_actions=self.n_actions,
-                      use_unet=self.use_unet,
-                      attention=self.attention,
-                      experiment=self.experiment).to(self.device)
-        elif model_type == "CommNet":
-            self.policy_net = CommNet(agents=6, 
-                      n_sample_points=self.n_sample_points, 
-                      number_actions=self.n_actions,
-                      use_unet=self.use_unet,
-                      attention=self.attention,
-                      experiment=self.experiment).to(self.device)
-            self.target_net = CommNet(agents=6, 
-                      n_sample_points=self.n_sample_points, 
-                      number_actions=self.n_actions,
-                      use_unet=self.use_unet,
-                      attention=self.attention,
-                      experiment=self.experiment).to(self.device)
 
+        self.rl_framework = rl_framework
+        if self.rl_framework == "DQN":
+            self.rl_model = DQN(action_dim=action_dim, 
+                                logger=logger, 
+                                gamma=gamma, 
+                                model_type=model_type,
+                                experiment=self.experiment,
+                                tau=tau,
+                                max_epsilon=max_epsilon,
+                                min_epsilon=min_epsilon,
+                                decay=decay,
+                                n_actions=self.env.n_actions if task == "train" else self.test_env.n_actions,
+                                n_sample_points=self.env.n_sample_points if task == "train" else self.test_env.n_sample_points,
+                                use_unet=use_unet)
+        else:
+            pass
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
         self.memory = ReplayMemory(capacity=1000)
@@ -101,14 +81,6 @@ class DQNAgent:
             self.policy_net.load_state_dict(self.dataLoader.load_model(model_name))
             self.policy_net.eval()
             self.logger.debug(f"Loaded Policy net {model_name}")
-
-    def select_action(self, state, location):
-        sample = random.random()
-        eps_threshold = self.min_epsilon + (self.max_epsilon - self.min_epsilon) * math.exp(-1 * self.total_steps / self.decay)
-        if sample < eps_threshold:
-            return torch.tensor([[random.randint(0, self.action_dim - 1)] for _ in range(self.agents)], device=self.device, dtype=torch.int64)
-        with torch.no_grad():
-            return self.policy_net(state, location).squeeze().max(1).indices.view(self.agents, 1)
 
 
     def optimize_model(self, batch_size=32):
