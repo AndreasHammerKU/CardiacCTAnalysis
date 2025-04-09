@@ -19,6 +19,7 @@ class ExperimentConfig:
     def __init__(self, model_type="Network3D", 
                        attention=False, 
                        experiment=Experiment.WORK_ALONE,
+                       rl_framework="DQN",
                        n_sample_points=5,
                        lr=0.001, 
                        gamma=0.9, 
@@ -36,7 +37,8 @@ class ExperimentConfig:
                        unet_init_features=16):
         self.model_type=model_type
         self.attention=attention
-        self.experiment=experiment 
+        self.experiment=experiment
+        self.rl_framework=rl_framework
         self.lr=lr
         self.gamma=gamma 
         self.max_epsilon=max_epsilon
