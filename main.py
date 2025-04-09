@@ -95,7 +95,7 @@ def main():
 
     logger = logs.setup_logger(args.debug)
     
-    dataLoader = DataLoader(c.DATASET_FOLDER, logger=logger)
+    dataLoader = DataLoader(c.DATASET_FOLDER, logger=logger, seed=1)
     
     config = load_config_from_yaml(args.config)
 

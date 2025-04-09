@@ -146,9 +146,9 @@ class DQNAgent:
         loss.backward()
         self.optimizer.step()
 
-    def train_dqn(self, new_image_interval=2):
+    def train_dqn(self):
         for episode in range(self.episodes):
-            if (episode) % new_image_interval == 0:
+            if (episode) % self.image_interval == 0:
                 self.env.get_next_image()
             state = self.env.reset()
             state = torch.tensor(state, dtype=torch.float32, device=self.device)
