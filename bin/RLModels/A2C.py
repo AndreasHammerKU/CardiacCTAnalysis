@@ -31,10 +31,11 @@ class A2C(RLModel):
         policy_dist = self.actor(state, location)
         actions = []
         for i in range(self.agents):
+            dist = Categorical(probs=policy_dist[0,i])
             if evaluate:
-                action = torch.argmax(policy_dist[0,i], dim=1)
+                action = torch.argmax(policy_dist[0,i], dim=1).item()
             else:
-                action = torch.multinomial(policy_dist[0,i], 1).item()
+                action = dist.sample()
             actions.append([action])
         return torch.tensor(actions, device=self.device, dtype=torch.int64)
 
