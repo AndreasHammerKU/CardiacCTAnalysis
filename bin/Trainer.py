@@ -170,10 +170,6 @@ class Trainer:
             if (episode + 1) % self.eval_interval == 0:
                 self.logger.info(f"===== Validation Run =====")
                 self._evaluate(self.eval_env)
-                if self.model_name is not None:
-                    self.dataLoader.save_model(f"{self.model_name}-episode-{episode+1}", self.policy_net.state_dict())
-                else:
-                    self.dataLoader.save_model(f"{self.model_type}-{self.experiment.name}-episode-{episode+1}", self.policy_net.state_dict())
         if self.model_name is not None:
             self.rl_model.save_model(dataLoader=self.dataLoader, model_name=self.model_name)
         else:
