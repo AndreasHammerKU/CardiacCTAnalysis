@@ -12,6 +12,7 @@ class DQN(RLModel):
     def __init__(self, action_dim, logger=None, model_name=None, model_type="Network3D", attention=False, experiment=Experiment.WORK_ALONE, n_sample_points=5, n_actions=6, lr=0.001, gamma=0.9, max_epsilon=1, min_epsilon=0.01, decay=250, agents=6, tau=0.005, use_unet=False):
         super().__init__(action_dim, logger, model_name, model_type, attention, experiment, n_sample_points, n_actions, lr, gamma, max_epsilon, min_epsilon, decay, agents, tau, use_unet)
 
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if model_type == "Network3D":
             self.policy_net = Network3D(agents=6, 
                       n_sample_points=self.n_sample_points, 

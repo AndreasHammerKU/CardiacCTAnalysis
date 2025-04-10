@@ -21,7 +21,6 @@ class RLModel:
                         agents=6, 
                         tau=0.005,
                         use_unet=False):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.action_dim = action_dim
         self.n_actions = n_actions
         self.n_sample_points = n_sample_points

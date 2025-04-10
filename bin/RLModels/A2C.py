@@ -15,6 +15,7 @@ class A2C(RLModel):
         super().__init__(action_dim, logger, model_name, model_type, attention, experiment, n_sample_points, n_actions, lr, gamma, max_epsilon, min_epsilon, decay, agents, tau, use_unet)
 
         self.agents = agents
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.actor =   Actor(agents=agents,
                              n_sample_points=n_sample_points,
                              number_actions=n_actions,
