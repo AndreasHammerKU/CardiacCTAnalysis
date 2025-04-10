@@ -28,7 +28,6 @@ class A2C(RLModel):
 
     def select_action(self, state, location, curr_step, evaluate):
         policy_dist = self.actor(state, location)
-        print(policy_dist)
         actions = []
         for i in range(self.agents):
             if evaluate:
@@ -115,11 +114,13 @@ class Actor(nn.Module):
         policies = []
         for i in range(self.agents):
             x = state[:, i] if batched else state[i].unsqueeze(0)
+            #print("Before encoder: ", x)
             x = self.encoder(x)
+            #print("Before Head: ", x)
             policy = self.actor_head[i](x)
             policy = F.softmax(policy, dim=-1)
             policies.append(policy)
-        
+
         return torch.stack(policies, dim=1)
             
 class Critic(nn.Module):

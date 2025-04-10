@@ -31,6 +31,7 @@ class FeatureEncoder(nn.Module):
         """Convolutional block with two 3D convolutions, batchnorm, and dropout."""
         block = nn.Sequential(
             nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm3d(out_channels),
             nn.ReLU(inplace=True),
             nn.Dropout3d(0.2)
         )
