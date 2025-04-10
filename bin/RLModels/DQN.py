@@ -2,6 +2,100 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from utils.parser import Experiment
+import random
+import math
+from bin.Memory import Transition
+from bin.RLModels.RLModel import RLModel
+from bin.RLModels.Encoder import FeatureEncoder
+
+class DQN(RLModel):
+    def __init__(self, action_dim, logger=None, model_name=None, model_type="Network3D", attention=False, experiment=Experiment.WORK_ALONE, n_sample_points=5, n_actions=6, lr=0.001, gamma=0.9, max_epsilon=1, min_epsilon=0.01, decay=250, agents=6, tau=0.005, use_unet=False):
+        super().__init__(action_dim, logger, model_name, model_type, attention, experiment, n_sample_points, n_actions, lr, gamma, max_epsilon, min_epsilon, decay, agents, tau, use_unet)
+
+        if model_type == "Network3D":
+            self.policy_net = Network3D(agents=6, 
+                      n_sample_points=self.n_sample_points, 
+                      number_actions=self.n_actions,
+                      use_unet=self.use_unet,
+                      attention=self.attention,
+                      experiment=self.experiment).to(self.device)
+            self.target_net = Network3D(agents=6, 
+                      n_sample_points=self.n_sample_points, 
+                      number_actions=self.n_actions,
+                      use_unet=self.use_unet,
+                      attention=self.attention,
+                      experiment=self.experiment).to(self.device)
+        elif model_type == "CommNet":
+            self.policy_net = CommNet(agents=6, 
+                      n_sample_points=self.n_sample_points, 
+                      number_actions=self.n_actions,
+                      use_unet=self.use_unet,
+                      attention=self.attention,
+                      experiment=self.experiment).to(self.device)
+            self.target_net = CommNet(agents=6, 
+                      n_sample_points=self.n_sample_points, 
+                      number_actions=self.n_actions,
+                      use_unet=self.use_unet,
+                      attention=self.attention,
+                      experiment=self.experiment).to(self.device)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
+            
+    def select_action(self, state, location, curr_step, evaluate=False):
+        sample = random.random()
+        eps_threshold = self.min_epsilon + (self.max_epsilon - self.min_epsilon) * math.exp(-1 * curr_step / self.decay)
+        if sample >= eps_threshold or evaluate:
+            with torch.no_grad():
+                return self.policy_net(state, location).squeeze().max(1).indices.view(self.agents, 1)
+        else:
+            return torch.tensor([[random.randint(0, self.action_dim - 1)] for _ in range(self.agents)], device=self.device, dtype=torch.int64)
+
+    def optimize_model(self, transitions):
+        batch = Transition(*zip(*transitions))
+
+        states = torch.cat([s.unsqueeze(0) for s in batch.state], dim=0)
+        next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state], dim=0)
+        actions = torch.cat([a.unsqueeze(0) for a in batch.action], dim=0)
+        rewards = torch.cat([r.unsqueeze(0) for r in batch.reward], dim=0)
+        dones = torch.cat([d.unsqueeze(0) for d in batch.done], dim=0)
+
+        # Compute the average reward across agents for each transition
+        rewards += torch.mean(rewards, axis=1).unsqueeze(1).repeat(1, rewards.shape[1])
+
+        locations = torch.cat([l.unsqueeze(0) for l in batch.location], dim=0) if self.experiment != Experiment.WORK_ALONE else None
+        next_locations = torch.cat([l.unsqueeze(0) for l in batch.next_location], dim=0) if self.experiment != Experiment.WORK_ALONE else None
+        
+        state_action_values = self.policy_net(states, locations).view(
+            -1, self.agents, self.n_actions).gather(2, actions).squeeze(-1)
+
+        with torch.no_grad():
+            next_states_values = self.target_net(next_states, next_locations).view(-1, self.agents, self.n_actions).max(-1)[0]
+        
+        next_states_values = (1 - dones.squeeze(-1)) * next_states_values
+
+        # Bellman equation with averaged rewards
+        expected_state_action_values = (next_states_values * self.gamma) + rewards
+
+        criterion = nn.SmoothL1Loss()
+        loss = criterion(state_action_values, expected_state_action_values)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()    
+
+    def update_network(self):
+        target_net_state_dict = self.target_net.state_dict()
+        policy_net_state_dict = self.policy_net.state_dict()
+
+        for key in policy_net_state_dict:
+            target_net_state_dict[key] = policy_net_state_dict[key] * self.tau + target_net_state_dict[key] * (1 - self.tau)
+
+        self.target_net.load_state_dict(target_net_state_dict)
+
+    def eval(self):
+        self.policy_net.eval()
+    
+    def train(self):
+        self.policy_net.train()
 
 class Network3D(nn.Module):
     def __init__(self, agents, 
@@ -25,14 +119,7 @@ class Network3D(nn.Module):
         elif self.experiment == Experiment.SHARE_PAIRWISE:
             self.location_fc = nn.Linear(in_features=self.agents**2, out_features=32)
 
-        self.conv0 = self.conv_block(in_channels=n_sample_points + (self.use_unet*n_sample_points), out_channels=8)
-        self.maxpool0 = self.max_pool_layer()
-        self.conv1 = self.conv_block(in_channels=8, out_channels=16)
-        self.maxpool1 = self.max_pool_layer()
-        self.conv2 = self.conv_block(in_channels=16, out_channels=32)
-        self.maxpool2 = self.max_pool_layer()
-        self.conv3 = self.conv_block(in_channels=32, out_channels=64)
-        self.maxpool3 = self.max_pool_layer()
+        self.encoder = FeatureEncoder(in_channels=n_sample_points + (self.use_unet*n_sample_points), n_features=512)
 
         # (64x2x2x2)
         self.fc1 = nn.ModuleList(
@@ -53,22 +140,6 @@ class Network3D(nn.Module):
             for module in self.modules():
                 if isinstance(module, (nn.Conv3d, nn.Linear)):
                     torch.nn.init.xavier_uniform_(module.weight)
-    
-    def conv_block(self, in_channels, out_channels):
-        """Convolutional block with two 3D convolutions, batchnorm, and dropout."""
-        block = nn.Sequential(
-            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm3d(out_channels),
-            nn.ReLU(inplace=True),
-            nn.Dropout3d(0.2)
-        )
-        return block
-    
-    def max_pool_layer(self):
-        block = nn.Sequential(
-            nn.MaxPool3d(kernel_size=2, stride=2)
-        )
-        return block
     
     def forward(self, state, location=None):
         """
@@ -92,17 +163,8 @@ class Network3D(nn.Module):
 
         output = []
         for i in range(self.agents):
-            
             x = state[:, i] if batched else state[i].unsqueeze(0)
-            x = self.conv0(x)
-            x = self.maxpool0(x)
-            x = self.conv1(x)
-            x = self.maxpool1(x)
-            x = self.conv2(x)
-            x = self.maxpool2(x)
-            x = self.conv3(x)
-            x = self.maxpool3(x)
-            x = x.view(-1, 512)
+            x = self.encoder(x)
             # Pass through first FC layer
             x = self.fc1[i](x)
             x = self.prelu4[i](x)
@@ -140,15 +202,7 @@ class CommNet(nn.Module):
         elif self.experiment == Experiment.SHARE_PAIRWISE:
             self.location_fc = nn.Linear(in_features=self.agents**2, out_features=32)
 
-
-        self.conv0 = self.conv_block(in_channels=n_sample_points + (self.use_unet*n_sample_points), out_channels=8)
-        self.maxpool0 = self.max_pool_layer()
-        self.conv1 = self.conv_block(in_channels=8, out_channels=16)
-        self.maxpool1 = self.max_pool_layer()
-        self.conv2 = self.conv_block(in_channels=16, out_channels=32)
-        self.maxpool2 = self.max_pool_layer()
-        self.conv3 = self.conv_block(in_channels=32, out_channels=64)
-        self.maxpool3 = self.max_pool_layer()
+        self.encoder = FeatureEncoder(in_channels=n_sample_points + (self.use_unet*n_sample_points), n_features=512)
 
         self.fc1 = nn.ModuleList(
             [nn.Linear(in_features=(512 + (32 * (self.experiment != Experiment.WORK_ALONE))) * 2, out_features=256) for _ in range(self.agents)])
@@ -197,15 +251,7 @@ class CommNet(nn.Module):
         input2 = []
         for i in range(self.agents):
             x = state[:, i] if batched else state[i].unsqueeze(0)
-            x = self.conv0(x)
-            x = self.maxpool0(x)
-            x = self.conv1(x)
-            x = self.maxpool1(x)
-            x = self.conv2(x)
-            x = self.maxpool2(x)
-            x = self.conv3(x)
-            x = self.maxpool3(x)
-            x = x.view(-1, 512)
+            x = self.encoder(x)
             if self.experiment != Experiment.WORK_ALONE:
                 x = torch.cat([x, location_data], dim=-1)
             input2.append(x)
@@ -252,19 +298,3 @@ class CommNet(nn.Module):
             output.append(x)
         output = torch.stack(output, dim=1)
         return output
-    
-    def conv_block(self, in_channels, out_channels):
-        """Convolutional block with two 3D convolutions, batchnorm, and dropout."""
-        block = nn.Sequential(
-            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm3d(out_channels),
-            nn.ReLU(inplace=True),
-            nn.Dropout3d(0.2)
-        )
-        return block
-    
-    def max_pool_layer(self):
-        block = nn.Sequential(
-            nn.MaxPool3d(kernel_size=2, stride=2)
-        )
-        return block

@@ -7,17 +7,18 @@ import random, math
 import numpy as np
 from scipy.special import binom
 from collections import deque
-from baseline.BaseMemory import ReplayMemory, Transition
-from baseline.BaseDQN import Network3D, CommNet
+from bin.Memory import ReplayMemory, Transition
+from bin.Environment import MedicalImageEnvironment
+from bin.RLModels.DQN import DQN
+from bin.RLModels.A2C import A2C
 from utils.parser import Experiment
 import matplotlib.pyplot as plt
 
-class DQNAgent:
-    def __init__(self,  state_dim : int, 
-                        action_dim : int,
-                        train_environment=None,
-                        eval_environment=None,
-                        test_environment=None, 
+class Trainer:
+    def __init__(self,  action_dim : int,
+                        train_environment: MedicalImageEnvironment = None,
+                        eval_environment: MedicalImageEnvironment =None,
+                        test_environment: MedicalImageEnvironment =None, 
                         logger=None,
                         dataLoader=None, 
                         task="train", 
@@ -25,6 +26,7 @@ class DQNAgent:
                         model_type="Network3D",
                         attention=False,
                         experiment=Experiment.WORK_ALONE,
+                        rl_framework="DQN",
                         lr=0.001, 
                         gamma=0.90, 
                         max_epsilon=1.0, 
@@ -45,16 +47,7 @@ class DQNAgent:
         self.test_env = test_environment
         self.logger = logger
         self.dataLoader = dataLoader
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.gamma = gamma
-        self.tau = tau
-        self.max_epsilon = max_epsilon
-        self.min_epsilon = min_epsilon
-        self.decay = decay
         self.agents = agents
-        self.n_actions = self.env.n_actions if task == "train" else self.test_env.n_actions
-        self.n_sample_points = self.env.n_sample_points if task == "train" else self.test_env.n_sample_points
         self.max_steps = max_steps
         self.episodes = episodes
         self.image_interval = image_interval
@@ -62,37 +55,38 @@ class DQNAgent:
         self.eval_steps = evaluation_steps
         self.model_type = model_type
         self.attention = attention
-        self.use_unet = use_unet
         self.model_name = model_name
-        if model_type == "Network3D":
-            self.policy_net = Network3D(agents=6, 
-                      n_sample_points=self.n_sample_points, 
-                      number_actions=self.n_actions,
-                      use_unet=self.use_unet,
-                      attention=self.attention,
-                      experiment=self.experiment).to(self.device)
-            self.target_net = Network3D(agents=6, 
-                      n_sample_points=self.n_sample_points, 
-                      number_actions=self.n_actions,
-                      use_unet=self.use_unet,
-                      attention=self.attention,
-                      experiment=self.experiment).to(self.device)
-        elif model_type == "CommNet":
-            self.policy_net = CommNet(agents=6, 
-                      n_sample_points=self.n_sample_points, 
-                      number_actions=self.n_actions,
-                      use_unet=self.use_unet,
-                      attention=self.attention,
-                      experiment=self.experiment).to(self.device)
-            self.target_net = CommNet(agents=6, 
-                      n_sample_points=self.n_sample_points, 
-                      number_actions=self.n_actions,
-                      use_unet=self.use_unet,
-                      attention=self.attention,
-                      experiment=self.experiment).to(self.device)
 
-        self.target_net.load_state_dict(self.policy_net.state_dict())
-        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
+        self.rl_framework = rl_framework
+        if self.rl_framework == "DQN":
+            self.rl_model = DQN(action_dim=action_dim, 
+                                logger=logger, 
+                                gamma=gamma, 
+                                model_type=model_type,
+                                experiment=self.experiment,
+                                tau=tau,
+                                lr=lr,
+                                max_epsilon=max_epsilon,
+                                min_epsilon=min_epsilon,
+                                decay=decay,
+                                n_actions=self.env.n_actions if task == "train" else self.test_env.n_actions,
+                                n_sample_points=self.env.n_sample_points if task == "train" else self.test_env.n_sample_points,
+                                use_unet=use_unet)
+        elif self.rl_framework == "A2C":
+            self.rl_model = A2C(action_dim=action_dim, 
+                                logger=logger, 
+                                gamma=gamma, 
+                                model_type=model_type,
+                                experiment=self.experiment,
+                                tau=tau,
+                                lr=lr,
+                                max_epsilon=max_epsilon,
+                                min_epsilon=min_epsilon,
+                                decay=decay,
+                                n_actions=self.env.n_actions if task == "train" else self.test_env.n_actions,
+                                n_sample_points=self.env.n_sample_points if task == "train" else self.test_env.n_sample_points,
+                                use_unet=use_unet)
+        
         self.memory = ReplayMemory(capacity=1000)
 
         if task != "train":
@@ -102,51 +96,8 @@ class DQNAgent:
             self.policy_net.eval()
             self.logger.debug(f"Loaded Policy net {model_name}")
 
-    def select_action(self, state, location):
-        sample = random.random()
-        eps_threshold = self.min_epsilon + (self.max_epsilon - self.min_epsilon) * math.exp(-1 * self.total_steps / self.decay)
-        if sample < eps_threshold:
-            return torch.tensor([[random.randint(0, self.action_dim - 1)] for _ in range(self.agents)], device=self.device, dtype=torch.int64)
-        with torch.no_grad():
-            return self.policy_net(state, location).squeeze().max(1).indices.view(self.agents, 1)
-
-
-    def optimize_model(self, batch_size=32):
-        if len(self.memory) < batch_size:
-            return
-        transitions = self.memory.sample(batch_size=batch_size)
-        batch = Transition(*zip(*transitions))
-
-        states = torch.cat([s.unsqueeze(0) for s in batch.state], dim=0)
-        next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state], dim=0)
-        actions = torch.cat([a.unsqueeze(0) for a in batch.action], dim=0)
-        rewards = torch.cat([r.unsqueeze(0) for r in batch.reward], dim=0)
-        dones = torch.cat([d.unsqueeze(0) for d in batch.done], dim=0)
-
-        # Compute the average reward across agents for each transition
-        rewards += torch.mean(rewards, axis=1).unsqueeze(1).repeat(1, rewards.shape[1])
-
-        locations = torch.cat([l.unsqueeze(0) for l in batch.location], dim=0) if self.experiment != Experiment.WORK_ALONE else None
-        next_locations = torch.cat([l.unsqueeze(0) for l in batch.next_location], dim=0) if self.experiment != Experiment.WORK_ALONE else None
-        
-        state_action_values = self.policy_net(states, locations).view(
-            -1, self.agents, self.n_actions).gather(2, actions).squeeze(-1)
-
-        with torch.no_grad():
-            next_states_values = self.target_net(next_states, next_locations).view(-1, self.agents, self.n_actions).max(-1)[0]
-        
-        next_states_values = (1 - dones.squeeze(-1)) * next_states_values
-
-        # Bellman equation with averaged rewards
-        expected_state_action_values = (next_states_values * self.gamma) + rewards
-
-        criterion = nn.SmoothL1Loss()
-        loss = criterion(state_action_values, expected_state_action_values)
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-    def train_dqn(self):
+    def train(self):
+        batch_size = 32
         for episode in range(self.episodes):
             if (episode) % self.image_interval == 0:
                 self.env.get_next_image()
@@ -171,10 +122,13 @@ class DQNAgent:
             furthest_point = np.zeros(len(self.env._location))
 
             while not torch.all(done) and self.total_steps <= self.max_steps:
-                actions = self.select_action(state, location_data)  # Assume select_action returns actions for all agents
-
+                # Get next action
+                actions = self.rl_model.select_action(state, location_data, self.total_steps, evaluate=False)
+                
+                # Return Result of action on environment
                 next_state, next_location_data, rewards, done = self.env.step(actions)
 
+                # Format output
                 rewards = torch.tensor(rewards, device=self.device)
                 next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
                 done = torch.tensor(done, dtype=torch.int, device=self.device)
@@ -193,15 +147,13 @@ class DQNAgent:
                 if self.experiment != Experiment.WORK_ALONE:
                     location_data = next_location_data
 
-                self.optimize_model()
+                # Prepare training batch
+                if len(self.memory) >= batch_size:
+                    transitions = self.memory.sample(batch_size=batch_size)
+                    self.rl_model.optimize_model(transitions)
+                
+                self.rl_model.update_network()
 
-                target_net_state_dict = self.target_net.state_dict()
-                policy_net_state_dict = self.policy_net.state_dict()
-
-                for key in policy_net_state_dict:
-                    target_net_state_dict[key] = policy_net_state_dict[key] * self.tau + target_net_state_dict[key] * (1 - self.tau)
-
-                self.target_net.load_state_dict(target_net_state_dict)
                 self.total_steps += 1
                 total_reward += rewards.mean(dim=0).item()
                 current_distances = self.env.distance_to_truth
@@ -217,7 +169,7 @@ class DQNAgent:
 
             if (episode + 1) % self.eval_interval == 0:
                 self.logger.info(f"===== Validation Run =====")
-                self._evaluate_dqn(self.eval_env)
+                self._evaluate(self.eval_env)
                 if self.model_name is not None:
                     self.dataLoader.save_model(f"{self.model_name}-episode-{episode+1}", self.policy_net.state_dict())
                 else:
@@ -227,12 +179,12 @@ class DQNAgent:
         else:
             self.dataLoader.save_model(f"{self.model_type}-{self.experiment.name}", self.policy_net.state_dict())
 
-    def _evaluate_dqn(self, environment):
+    def _evaluate(self, environment):
         """
         Runs evaluation episodes using the trained policy network without exploration.
         """
 
-        self.policy_net.eval()  # Set the network to evaluation mode
+        self.rl_model.eval()
 
         evaluation_errors_100 = []
         evaluation_errors_1 = []
@@ -259,12 +211,11 @@ class DQNAgent:
                 self.total_steps = 0
 
                 while self.total_steps <= self.eval_steps:
-                    actions = self.policy_net(state, location_data).squeeze().max(1).indices.view(self.agents, 1)  # Greedy action selection
+                    actions = self.rl_model.select_action(state, location_data, self.total_steps, evaluate=False)
                     
                     next_state, next_location_data, rewards, done = environment.step(actions)
                     
                     found_truth = np.logical_or(found_truth, done.reshape((6)))  # Track if any agent reached the goal
-                    
                     
                     rewards = torch.tensor(rewards, device=self.device)
                     next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
@@ -306,13 +257,13 @@ class DQNAgent:
         avg_closest = closest_distances.mean()
         avg_furthest = furthest_distances.mean()
 
-        self.policy_net.train()  # Return to train mode
+        self.rl_model.train()  # Return to train mode
         self.logger.info("===== Evaluation Summary =====")
         self.logger.info(f"Average Closest Distance Across Agents: {avg_closest:.2f}")
         self.logger.info(f"Average Furthest Distance Across Agents: {avg_furthest:.2f}")
 
-    def test_dqn(self):
-        self._evaluate_dqn(self.test_env)
+    def test(self):
+        self._evaluate(self.test_env)
 
 def make_boxplot(error):
     error_data = np.concatenate(error)

@@ -8,13 +8,14 @@ import matplotlib.pyplot as plt
 from scipy.spatial import KDTree
 from scipy.special import comb
 import plotly.graph_objects as go
-from baseline.BaseUnet import UNet3D
+from bin.Unet import UNet3D
+from bin.DataLoader import DataLoader
 import torch
 
 class MedicalImageEnvironment(gym.Env):
 
     def __init__(self, task="train", 
-                       dataLoader=None, 
+                       dataLoader: DataLoader = None, 
                        n_sample_points=5,
                        vision_size=(33, 33, 33), 
                        agents=6, 
@@ -57,10 +58,6 @@ class MedicalImageEnvironment(gym.Env):
 
         if task != "train":
             self.current_image = 0
-        
-        #self.get_next_image()
-        #self.reset()
-
 
     def get_next_image(self):
         if self.task == "train":

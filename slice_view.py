@@ -1,7 +1,7 @@
 import utils.visualiser as viz
-from baseline.BaseDataLoader import DataLoader
+from bin.DataLoader import DataLoader
 import constants as c
-from baseline.BaseUnet import BaseUNetTrainer
+from bin.Unet import BaseUNetTrainer
 import utils.logger as logs
 
 def main():

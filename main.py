@@ -1,8 +1,8 @@
 import utils.logger as logs
 from utils.parser import ExperimentConfig, load_config_from_yaml, parse_args
-from baseline.BaseEnvironment import MedicalImageEnvironment
-from baseline.BaseDataLoader import DataLoader
-from baseline.BaseAgent import DQNAgent
+from bin.Environment import MedicalImageEnvironment
+from bin.DataLoader import DataLoader
+from bin.Trainer import Trainer
 import constants as c
 
 def train_model(config : ExperimentConfig, model_name, logger, dataLoader : DataLoader):
@@ -26,12 +26,11 @@ def train_model(config : ExperimentConfig, model_name, logger, dataLoader : Data
                                        use_unet=config.use_unet,
                                        unet_init_features=config.unet_init_features)
     
-    agent = DQNAgent(train_environment=train_env,
+    trainer = Trainer(train_environment=train_env,
                      eval_environment=eval_env,
                      task="train",
                      logger=logger,
                      dataLoader=dataLoader,
-                     state_dim=train_env.state_size,
                      action_dim=train_env.n_actions,
                      attention=config.attention,
                      model_name=model_name,
@@ -40,6 +39,7 @@ def train_model(config : ExperimentConfig, model_name, logger, dataLoader : Data
                      episodes=config.episodes,
                      image_interval=config.image_interval,
                      experiment=config.experiment,
+                     rl_framework=config.rl_framework,
                      min_epsilon=config.min_epsilon,
                      max_epsilon=config.max_epsilon,
                      decay=config.decay,
@@ -50,7 +50,7 @@ def train_model(config : ExperimentConfig, model_name, logger, dataLoader : Data
                      tau=config.tau,
                      use_unet=config.use_unet)
     
-    agent.train_dqn()
+    trainer.train()
     train_env.visualize_current_state()
     eval_env.visualize_current_state()
 
@@ -65,11 +65,10 @@ def test_model(config : ExperimentConfig, model_name, logger, dataLoader : DataL
                                        use_unet=config.use_unet,
                                        unet_init_features=config.unet_init_features)
     
-    agent = DQNAgent(test_environment=test_env,
+    trainer = Trainer(test_environment=test_env,
                      task="train",
                      logger=logger,
                      dataLoader=dataLoader,
-                     state_dim=test_env.state_size,
                      action_dim=test_env.n_actions,
                      attention=config.attention,
                      model_name=model_name,
@@ -78,6 +77,7 @@ def test_model(config : ExperimentConfig, model_name, logger, dataLoader : DataL
                      episodes=config.episodes,
                      image_interval=config.image_interval,
                      experiment=config.experiment,
+                     rl_framework=config.rl_framework,
                      min_epsilon=config.min_epsilon,
                      max_epsilon=config.max_epsilon,
                      decay=config.decay,
@@ -87,7 +87,7 @@ def test_model(config : ExperimentConfig, model_name, logger, dataLoader : DataL
                      gamma=config.gamma,
                      tau=config.tau,
                      use_unet=config.use_unet)
-    agent.test_dqn()
+    trainer.test()
     test_env.visualize_current_state()
 
 def main():

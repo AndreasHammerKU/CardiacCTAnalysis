@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from baseline.BaseEnvironment import MedicalImageEnvironment
+from bin.Environment import MedicalImageEnvironment
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 import numpy as np
-from baseline.BaseUnet import UNet3D
+from bin.Unet import UNet3D
 
 
 class BaseUNetTrainer:
