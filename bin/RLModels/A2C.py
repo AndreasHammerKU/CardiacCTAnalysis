@@ -18,10 +18,10 @@ class A2C(RLModel):
         self.actor =   Actor(agents=agents,
                              n_sample_points=n_sample_points,
                              number_actions=n_actions,
-                             experiment=experiment)
+                             experiment=experiment).to(self.device)
         self.critic = Critic(agents=agents,
                              n_sample_points=n_sample_points,
-                             experiment=experiment)
+                             experiment=experiment).to(self.device)
         
         self.actor_optim = optim.Adam(self.actor.parameters(), lr=lr)
         self.critic_optim = optim.Adam(self.critic.parameters(), lr=lr)
