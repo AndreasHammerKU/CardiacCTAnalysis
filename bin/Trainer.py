@@ -92,8 +92,8 @@ class Trainer:
         if task != "train":
             assert model_name is not None, "Model named cannot be none"
             
-            self.policy_net.load_state_dict(self.dataLoader.load_model(model_name))
-            self.policy_net.eval()
+            self.rl_model.load_model(dataLoader=dataLoader, model_name=model_name)
+            self.rl_model.eval()
             self.logger.debug(f"Loaded Policy net {model_name}")
 
     def train(self):
@@ -175,9 +175,9 @@ class Trainer:
                 else:
                     self.dataLoader.save_model(f"{self.model_type}-{self.experiment.name}-episode-{episode+1}", self.policy_net.state_dict())
         if self.model_name is not None:
-            self.dataLoader.save_model(self.model_name, self.policy_net.state_dict())
+            self.rl_model.save_model(dataLoader=self.dataLoader, model_name=self.model_name)
         else:
-            self.dataLoader.save_model(f"{self.model_type}-{self.experiment.name}", self.policy_net.state_dict())
+            self.rl_model.save_model(dataLoader=self.dataLoader, model_name=f"{self.rl_framework}-{self.model_type}-{self.experiment.name}")
 
     def _evaluate(self, environment):
         """

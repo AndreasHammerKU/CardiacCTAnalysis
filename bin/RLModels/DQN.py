@@ -98,6 +98,14 @@ class DQN(RLModel):
     def train(self):
         self.policy_net.train()
 
+    def save_model(self, dataLoader, model_name):
+        dataLoader.save_model(model_name, self.policy_net.state_dict())
+
+    def load_model(self, dataLoader, model_name):
+        self.policy_net.load_state_dict(dataLoader.load_model(model_name))
+
+    
+
 class Network3D(nn.Module):
     def __init__(self, agents, 
                        n_sample_points, 

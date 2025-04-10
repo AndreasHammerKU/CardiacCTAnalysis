@@ -50,3 +50,9 @@ class RLModel:
     
     def train(self):
         raise NotImplementedError("This method should be overridden in the subclass.")
+    
+    def save_model(self, dataLoader, model_name):
+        raise NotImplementedError("This method should be overridden in the subclass.")
+
+    def load_model(self, dataLoader, model_name):
+        raise NotImplementedError("This method should be overridden in the subclass.")

@@ -91,6 +91,14 @@ class A2C(RLModel):
         self.actor.train()
         self.critic.train()
 
+    def save_model(self, dataLoader, model_name):
+        dataLoader.save_model(model_name + "-actor", self.actor.state_dict())
+        dataLoader.save_model(model_name + "-critic", self.critic.state_dict())
+
+    def load_model(self, dataLoader, model_name):
+        self.actor.load_state_dict(dataLoader.load_model(model_name + "-actor"))
+        self.critic.load_state_dict(dataLoader.load_model(model_name + "-critic"))
+
 class Actor(nn.Module):
     def __init__(self, agents, 
                        n_sample_points, 
