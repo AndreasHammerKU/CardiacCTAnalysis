@@ -128,22 +128,22 @@ class Network3D(nn.Module):
         elif self.experiment == Experiment.SHARE_PAIRWISE:
             self.location_fc = nn.Linear(in_features=self.agents**2, out_features=32)
 
-        self.encoder = FeatureEncoder(in_channels=n_sample_points + (self.use_unet*n_sample_points), n_features=512)
+        n_featues = 256
+        self.encoder = FeatureEncoder(in_channels=n_sample_points + (self.use_unet*n_sample_points), n_features=n_featues)
 
-        # (64x2x2x2)
         self.fc1 = nn.ModuleList(
-            [nn.Linear(in_features=512, out_features=256) for _ in range(self.agents)])
+            [nn.Linear(in_features=n_featues, out_features=128) for _ in range(self.agents)])
         self.prelu4 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         
         # Modify fc2 to accept location input
         self.fc2 = nn.ModuleList(
-            [nn.Linear(in_features=256 + 
-                       (32 * (self.experiment != Experiment.WORK_ALONE)), out_features=128) for _ in range(self.agents)])
+            [nn.Linear(in_features=128 + 
+                       (32 * (self.experiment != Experiment.WORK_ALONE)), out_features=64) for _ in range(self.agents)])
         self.prelu5 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         self.fc3 = nn.ModuleList(
-            [nn.Linear(in_features=128, out_features=number_actions) for _ in range(self.agents)])
+            [nn.Linear(in_features=64, out_features=number_actions) for _ in range(self.agents)])
 
         if xavier:
             for module in self.modules():
@@ -211,20 +211,21 @@ class CommNet(nn.Module):
         elif self.experiment == Experiment.SHARE_PAIRWISE:
             self.location_fc = nn.Linear(in_features=self.agents**2, out_features=32)
 
-        self.encoder = FeatureEncoder(in_channels=n_sample_points + (self.use_unet*n_sample_points), n_features=512)
+        n_features = 256
+        self.encoder = FeatureEncoder(in_channels=n_sample_points + (self.use_unet*n_sample_points), n_features=n_features)
 
         self.fc1 = nn.ModuleList(
-            [nn.Linear(in_features=(512 + (32 * (self.experiment != Experiment.WORK_ALONE))) * 2, out_features=256) for _ in range(self.agents)])
+            [nn.Linear(in_features=(n_features + (32 * (self.experiment != Experiment.WORK_ALONE))) * 2, out_features=128) for _ in range(self.agents)])
         self.prelu4 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         
         # Modify fc2 to accept location input
         self.fc2 = nn.ModuleList(
-            [nn.Linear(in_features=256 * 2, out_features=128) for _ in range(self.agents)])
+            [nn.Linear(in_features=128 * 2, out_features=64) for _ in range(self.agents)])
         self.prelu5 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         self.fc3 = nn.ModuleList(
-            [nn.Linear(in_features=128 * 2, out_features=number_actions) for _ in range(self.agents)])
+            [nn.Linear(in_features=64 * 2, out_features=number_actions) for _ in range(self.agents)])
 
         self.attention = attention
         if self.attention:
