@@ -113,7 +113,7 @@ class Actor(nn.Module):
         self.experiment = experiment
         self.agents = agents
         self.n_sample_points = n_sample_points
-        self.n_features = 512
+        self.n_features = 256
         self.encoder = FeatureEncoder(in_channels=n_sample_points, n_features=self.n_features)
 
         self.actor_head = nn.ModuleList(
@@ -144,7 +144,7 @@ class Critic(nn.Module):
         self.experiment = experiment
         self.agents = agents
         self.n_sample_points = n_sample_points
-        self.n_features = 512
+        self.n_features = 256
         self.encoder = FeatureEncoder(in_channels=n_sample_points, n_features=self.n_features)
 
         self.critic_head = nn.ModuleList(
