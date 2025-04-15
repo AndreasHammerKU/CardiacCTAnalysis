@@ -1,6 +1,10 @@
 import os
 
-DATASET_FOLDER = os.path.join(os.path.expanduser("~"), "Desktop", "_2025_aortic_valves")
+NEW_DATA = "_2025_aortic_valves"
+
+OLD_DATA = "Dataset"
+
+DATASET_FOLDER = os.path.join(os.path.expanduser("~"), "Desktop", OLD_DATA)
 
 ROI_FOLDER = "roi"
 

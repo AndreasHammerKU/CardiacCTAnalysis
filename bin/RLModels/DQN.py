@@ -39,15 +39,20 @@ class DQN(RLModel):
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
             
     def select_action(self, state, location, curr_step, evaluate=False):
+        if evaluate:
+            return self.policy_net(state, location).squeeze().max(1).indices.view(self.agents, 1)
         sample = random.random()
         eps_threshold = self.min_epsilon + (self.max_epsilon - self.min_epsilon) * math.exp(-1 * curr_step / self.decay)
-        if sample >= eps_threshold or evaluate:
-            with torch.no_grad():
-                return self.policy_net(state, location).squeeze().max(1).indices.view(self.agents, 1)
-        else:
+        if sample < eps_threshold:
             return torch.tensor([[random.randint(0, self.action_dim - 1)] for _ in range(self.agents)], device=self.device, dtype=torch.int64)
+        with torch.no_grad():
+            return self.policy_net(state, location).squeeze().max(1).indices.view(self.agents, 1)
 
-    def optimize_model(self, transitions):
+    def optimize_model(self, memory, batch_size=32):
+        if len(memory) < batch_size:
+            return
+        
+        transitions = memory.sample(batch_size=batch_size)
         batch = Transition(*zip(*transitions))
 
         states = torch.cat([s.unsqueeze(0) for s in batch.state], dim=0)

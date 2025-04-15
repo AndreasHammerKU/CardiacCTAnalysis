@@ -156,11 +156,7 @@ class Trainer:
                 if self.experiment != Experiment.WORK_ALONE:
                     location_data = next_location_data
 
-                # Prepare training batch
-                if len(self.memory) >= batch_size:
-                    transitions = self.memory.sample(batch_size=batch_size)
-                    self.rl_model.optimize_model(transitions)
-                
+                self.rl_model.optimize_model(self.memory)
                 self.rl_model.update_network()
 
                 self.total_steps += 1

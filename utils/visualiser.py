@@ -185,7 +185,7 @@ def align_surface(image, voxels, point_filter):
 
 
 def create_slice_app(image_name, dataLoader):
-    nifti_data, _, voxels = dataLoader.load_data(image_name=image_name)
+    nifti_data, _, voxels = dataLoader.load_data(image_name=image_name, trim_image=False)
 
     point_filter = ['R', 'RLC', 'RNC']
 
@@ -210,7 +210,7 @@ def create_slice_app(image_name, dataLoader):
     app.run_server(debug=True)
 
 def view_curve(image_name, dataLoader):
-    image, affine, voxel_landmarks = dataLoader.load_data(image_name=image_name)
+    image, affine, voxel_landmarks = dataLoader.load_data(image_name=image_name, trim_image=False)
 
     geometry = geom.LeafletGeometry(voxel_landmarks)
     geometry.calculate_bezier_curves()
