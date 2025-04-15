@@ -56,7 +56,7 @@ class MedicalImageEnvironment(gym.Env):
             if self.current_image >= len(self.image_list):
                 self.current_image = 0
         
-        self.image, self.affine, voxel_landmarks = self.dataLoader.load_data(image_name=image_name)
+        self.image, self.affine, voxel_landmarks = self.dataLoader.load_data(image_name=image_name, trim_image=False)
         
         self.geometry = LeafletGeometry(voxel_landmarks)
         self.geometry.calculate_bezier_curves()
