@@ -106,7 +106,6 @@ class Trainer:
                           f"Tau: {tau}")
 
     def train(self):
-        batch_size = 32
         for episode in range(self.episodes):
             if (episode) % self.image_interval == 0:
                 self.env.get_next_image()
@@ -212,7 +211,7 @@ class Trainer:
                 self.total_steps = 0
 
                 while self.total_steps <= self.eval_steps:
-                    actions = self.rl_model.select_action(state, location_data, self.total_steps, evaluate=False)
+                    actions = self.rl_model.select_action(state, location_data, self.total_steps, evaluate=True)
                     
                     next_state, next_location_data, rewards, done = environment.step(actions)
                     
