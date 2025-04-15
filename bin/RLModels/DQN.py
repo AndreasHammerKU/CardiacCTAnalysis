@@ -206,6 +206,28 @@ class CommNet(nn.Module):
         n_features = 256
         self.encoder = FeatureEncoder(in_channels=n_sample_points, n_features=n_features)
 
+        self.conv0 = nn.Conv3d(
+            in_channels=n_sample_points,
+            out_channels=16,
+            kernel_size=3,
+            padding=1)
+        self.maxpool0 = nn.MaxPool3d(kernel_size=2, stride=2)
+        self.prelu0 = nn.PReLU()
+        self.conv1 = nn.Conv3d(
+            in_channels=16,
+            out_channels=32,
+            kernel_size=3,
+            padding=1)
+        self.maxpool1 = nn.MaxPool3d(kernel_size=2, stride=2)
+        self.prelu1 = nn.PReLU()
+        self.conv2 = nn.Conv3d(
+            in_channels=32,
+            out_channels=32,
+            kernel_size=3,
+            padding=1)
+        self.maxpool2 = nn.MaxPool3d(kernel_size=2, stride=2)
+        self.prelu2 = nn.PReLU()
+
         self.fc1 = nn.ModuleList(
             [nn.Linear(in_features=(n_features + (32 * (self.experiment != Experiment.WORK_ALONE))) * 2, out_features=128) for _ in range(self.agents)])
         self.prelu4 = nn.ModuleList(
@@ -253,7 +275,16 @@ class CommNet(nn.Module):
         input2 = []
         for i in range(self.agents):
             x = state[:, i] if batched else state[i].unsqueeze(0)
-            x = self.encoder(x)
+            x = self.conv0
+            x = self.prelu0
+            x = self.maxpool0(x)
+            x = self.conv1(x)
+            x = self.prelu1(x)
+            x = self.maxpool1(x)
+            x = self.conv2(x)
+            x = self.prelu2(x)
+            x = self.maxpool2(x)
+            x = x.view(-1, 256)
             if self.experiment != Experiment.WORK_ALONE:
                 x = torch.cat([x, location_data], dim=-1)
             input2.append(x)
