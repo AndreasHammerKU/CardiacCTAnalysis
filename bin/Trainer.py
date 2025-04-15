@@ -211,7 +211,7 @@ class Trainer:
                 self.total_steps = 0
 
                 while self.total_steps <= self.eval_steps:
-                    actions = self.rl_model.select_action(state, location_data, self.total_steps, evaluate=True)
+                    actions = self.rl_model.select_action(state, location_data, self.total_steps, evaluate=False)
                     
                     next_state, next_location_data, rewards, done = environment.step(actions)
                     

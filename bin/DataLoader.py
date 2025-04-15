@@ -77,7 +77,7 @@ class DataLoader():
     def _load_nifti(self, file_path):
         nii_img = nib.load(file_path)
         affine = nii_img.affine  # Get transformation matrix
-        self.logger.debug(f"Orientation {nib.orientations.aff2axcodes(affine)} | Image shape {nii_img.get_fdata().shape}")
+        #self.logger.debug(f"Orientation {nib.orientations.aff2axcodes(affine)} | Image shape {nii_img.get_fdata().shape} | ")
         return nii_img.get_fdata(), affine
 
     def load_data(self, image_name, trim_image=True):

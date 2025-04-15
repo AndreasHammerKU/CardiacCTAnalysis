@@ -39,7 +39,11 @@ class A2C(RLModel):
             actions.append([action])
         return torch.tensor(actions, device=self.device, dtype=torch.int64)
 
-    def optimize_model(self, transitions):
+    def optimize_model(self, memory, batch_size=32):
+        if len(memory) < batch_size:
+            return
+        
+        transitions = memory.sample(batch_size=batch_size)
         batch = Transition(*zip(*transitions))
         
         states = torch.cat([s.unsqueeze(0) for s in batch.state], dim=0)
