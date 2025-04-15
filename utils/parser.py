@@ -32,9 +32,7 @@ class ExperimentConfig:
                        evaluation_steps=30,
                        episodes=50,
                        image_interval=1,
-                       evaluation_interval=10,
-                       use_unet=False,
-                       unet_init_features=16):
+                       evaluation_interval=10):
         self.model_type=model_type
         self.attention=attention
         self.experiment=experiment
@@ -51,9 +49,7 @@ class ExperimentConfig:
         self.episodes=episodes
         self.image_interval=image_interval
         self.evaluation_interval=evaluation_interval
-        self.use_unet=use_unet
         self.n_sample_points=n_sample_points
-        self.unet_init_features=unet_init_features
 
 def load_config_from_yaml(path: str) -> ExperimentConfig:
     with open(path, 'r') as file:

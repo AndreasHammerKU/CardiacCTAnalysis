@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from scipy.spatial import KDTree
 from scipy.special import comb
 import plotly.graph_objects as go
-from bin.Unet import UNet3D
 from bin.DataLoader import DataLoader
 import torch
 
@@ -20,24 +19,13 @@ class MedicalImageEnvironment(gym.Env):
                        vision_size=(21, 21, 21), 
                        agents=6, 
                        image_list=None, 
-                       logger=None,
-                       use_unet=False,
-                       unet_init_features=16):
+                       logger=None):
 
         super(MedicalImageEnvironment, self).__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.logger = logger
         self.dataLoader = dataLoader
         self.image_list = image_list
-
-        self.use_unet = use_unet
-        if self.use_unet:
-            input_channels=1
-            output_channels=1
-            self.pre_model = UNet3D(in_channels=input_channels, out_channels=output_channels, 
-                init_features=unet_init_features).to(self.device)
-
-            self.pre_model.load_state_dict(self.dataLoader.load_unet(f"Unet-{unet_init_features}"))
 
         self.agents = agents
         self.task = task
@@ -69,11 +57,6 @@ class MedicalImageEnvironment(gym.Env):
                 self.current_image = 0
         
         self.image, self.affine, voxel_landmarks = self.dataLoader.load_data(image_name=image_name)
-
-        if self.use_unet:
-            input_data = torch.tensor(self.image, dtype=torch.float32, device=self.device)
-            depth_map = self.pre_model(input_data.unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
-            self.binary_mask = (depth_map.detach().cpu().numpy() > 0.5).astype(np.uint8)
         
         self.geometry = LeafletGeometry(voxel_landmarks)
         self.geometry.calculate_bezier_curves()
@@ -101,7 +84,7 @@ class MedicalImageEnvironment(gym.Env):
             self._sample_points[i, :, :] = bezier_curve(self._p0[i], self._location[i], self._p2[i], self.t_values)
         half_width, half_height, half_depth = self.width // 2, self.height // 2, self.depth // 2 
         boxes = np.zeros((self.agents, 
-                               self.n_sample_points + (self.use_unet * self.n_sample_points), 
+                               self.n_sample_points, 
                                self.width, 
                                self.height, 
                                self.depth), dtype=self.image.dtype)
@@ -120,9 +103,6 @@ class MedicalImageEnvironment(gym.Env):
                 # Copy the valid region from the image to the preallocated box
                 boxes[i, o, pad_x_min:pad_x_max, pad_y_min:pad_y_max, pad_z_min:pad_z_max] = \
                 self.image[x_min:x_max, y_min:y_max, z_min:z_max]
-                if self.use_unet:
-                    boxes[i, o + self.n_sample_points, pad_x_min:pad_x_max, pad_y_min:pad_y_max, pad_z_min:pad_z_max] = \
-                    self.binary_mask[x_min:x_max, y_min:y_max, z_min:z_max]
         return boxes
 
     def step(self, actions):

@@ -111,12 +111,6 @@ class DataLoader():
     def load_model(self, model_name : str):
         return torch.load(os.path.join(self.model_dir, f"{model_name}.pt"), map_location=self.device)
 
-    def save_unet(self, model_name : str, state_dict : collections.OrderedDict):
-        torch.save(state_dict.state_dict(), os.path.join(self.model_dir, f"{model_name}.pth"))
-
-    def load_unet(self, model_name : str):
-        return torch.load(os.path.join(self.model_dir, f"{model_name}.pth"), map_location=self.device)
-
     def _crop_image(self, image: np.ndarray, landmarks: dict, crop_size=(128, 128, 128)) -> Tuple[np.ndarray, dict]: 
         points = []
         for key, value in landmarks.items():

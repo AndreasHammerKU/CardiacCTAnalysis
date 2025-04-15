@@ -9,34 +9,30 @@ from bin.RLModels.RLModel import RLModel
 from bin.RLModels.Encoder import FeatureEncoder
 
 class DQN(RLModel):
-    def __init__(self, action_dim, logger=None, model_name=None, model_type="Network3D", attention=False, experiment=Experiment.WORK_ALONE, n_sample_points=5, n_actions=6, lr=0.001, gamma=0.9, max_epsilon=1, min_epsilon=0.01, decay=250, agents=6, tau=0.005, use_unet=False):
-        super().__init__(action_dim, logger, model_name, model_type, attention, experiment, n_sample_points, n_actions, lr, gamma, max_epsilon, min_epsilon, decay, agents, tau, use_unet)
+    def __init__(self, action_dim, logger=None, model_name=None, model_type="Network3D", attention=False, experiment=Experiment.WORK_ALONE, n_sample_points=5, n_actions=6, lr=0.001, gamma=0.9, max_epsilon=1, min_epsilon=0.01, decay=250, agents=6, tau=0.005):
+        super().__init__(action_dim, logger, model_name, model_type, attention, experiment, n_sample_points, n_actions, lr, gamma, max_epsilon, min_epsilon, decay, agents, tau)
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if model_type == "Network3D":
             self.policy_net = Network3D(agents=6, 
                       n_sample_points=self.n_sample_points, 
                       number_actions=self.n_actions,
-                      use_unet=self.use_unet,
                       attention=self.attention,
                       experiment=self.experiment).to(self.device)
             self.target_net = Network3D(agents=6, 
                       n_sample_points=self.n_sample_points, 
                       number_actions=self.n_actions,
-                      use_unet=self.use_unet,
                       attention=self.attention,
                       experiment=self.experiment).to(self.device)
         elif model_type == "CommNet":
             self.policy_net = CommNet(agents=6, 
                       n_sample_points=self.n_sample_points, 
                       number_actions=self.n_actions,
-                      use_unet=self.use_unet,
                       attention=self.attention,
                       experiment=self.experiment).to(self.device)
             self.target_net = CommNet(agents=6, 
                       n_sample_points=self.n_sample_points, 
                       number_actions=self.n_actions,
-                      use_unet=self.use_unet,
                       attention=self.attention,
                       experiment=self.experiment).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
@@ -113,15 +109,13 @@ class Network3D(nn.Module):
                        location_dim=3, 
                        xavier=True, 
                        attention=False, 
-                       experiment=Experiment.WORK_ALONE, 
-                       use_unet=False):
+                       experiment=Experiment.WORK_ALONE):
 
         super(Network3D, self).__init__()
 
         self.experiment = experiment
         self.agents = agents
         self.n_sample_points = n_sample_points
-        self.use_unet=use_unet
 
         if self.experiment == Experiment.SHARE_POSITIONS:# Dimension of relative locations (assuming 3D points)
             self.location_fc = nn.Linear(in_features=location_dim*agents, out_features=32)
@@ -129,7 +123,7 @@ class Network3D(nn.Module):
             self.location_fc = nn.Linear(in_features=self.agents**2, out_features=32)
 
         n_featues = 256
-        self.encoder = FeatureEncoder(in_channels=n_sample_points + (self.use_unet*n_sample_points), n_features=n_featues)
+        self.encoder = FeatureEncoder(in_channels=n_sample_points, n_features=n_featues)
 
         self.fc1 = nn.ModuleList(
             [nn.Linear(in_features=n_featues, out_features=128) for _ in range(self.agents)])
@@ -196,15 +190,13 @@ class CommNet(nn.Module):
                        location_dim=3, 
                        xavier=True, 
                        attention=False, 
-                       experiment=Experiment.WORK_ALONE,
-                       use_unet=False):
+                       experiment=Experiment.WORK_ALONE):
         
         super(CommNet, self).__init__()
 
         self.experiment = experiment
         self.agents = agents
         self.n_sample_points = n_sample_points
-        self.use_unet=use_unet
 
         if self.experiment == Experiment.SHARE_POSITIONS:# Dimension of relative locations (assuming 3D points)
             self.location_fc = nn.Linear(in_features=location_dim*agents, out_features=32)
@@ -212,7 +204,7 @@ class CommNet(nn.Module):
             self.location_fc = nn.Linear(in_features=self.agents**2, out_features=32)
 
         n_features = 256
-        self.encoder = FeatureEncoder(in_channels=n_sample_points + (self.use_unet*n_sample_points), n_features=n_features)
+        self.encoder = FeatureEncoder(in_channels=n_sample_points, n_features=n_features)
 
         self.fc1 = nn.ModuleList(
             [nn.Linear(in_features=(n_features + (32 * (self.experiment != Experiment.WORK_ALONE))) * 2, out_features=128) for _ in range(self.agents)])

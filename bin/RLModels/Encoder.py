@@ -1,6 +1,4 @@
 import torch.nn as nn
-import torch
-
 
 class FeatureEncoder(nn.Module):
     def __init__(self, in_channels, n_features):
@@ -30,7 +28,7 @@ class FeatureEncoder(nn.Module):
         """Convolutional block with two 3D convolutions, batchnorm, and dropout."""
         block = nn.Sequential(
             nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.MaxPool3d(kernel_size=2, stride=2),
-            nn.PReLU()
+            nn.PReLU(),
+            nn.MaxPool3d(kernel_size=2, stride=2)
         )
         return block

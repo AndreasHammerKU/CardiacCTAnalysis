@@ -12,9 +12,7 @@ def train_model(config : ExperimentConfig, model_name, logger, dataLoader : Data
                                         dataLoader=dataLoader, 
                                         image_list=dataLoader.train, 
                                         n_sample_points=config.n_sample_points,
-                                        agents=config.agents,
-                                        use_unet=config.use_unet,
-                                        unet_init_features=config.unet_init_features)
+                                        agents=config.agents)
     
     # Evaluation split
     eval_env = MedicalImageEnvironment(logger=logger,
@@ -22,9 +20,7 @@ def train_model(config : ExperimentConfig, model_name, logger, dataLoader : Data
                                        dataLoader=dataLoader,
                                        image_list=dataLoader.val,
                                        n_sample_points=config.n_sample_points,
-                                       agents=config.agents,
-                                       use_unet=config.use_unet,
-                                       unet_init_features=config.unet_init_features)
+                                       agents=config.agents)
     
     trainer = Trainer(train_environment=train_env,
                      eval_environment=eval_env,
@@ -47,8 +43,7 @@ def train_model(config : ExperimentConfig, model_name, logger, dataLoader : Data
                      evaluation_steps=config.evaluation_steps,
                      lr=config.lr,
                      gamma=config.gamma,
-                     tau=config.tau,
-                     use_unet=config.use_unet)
+                     tau=config.tau)
     
     trainer.train()
     train_env.visualize_current_state()
@@ -61,9 +56,7 @@ def test_model(config : ExperimentConfig, model_name, logger, dataLoader : DataL
                                        dataLoader=dataLoader,
                                        image_list=dataLoader.test_external if external else dataLoader.test,
                                        n_sample_points=config.n_sample_points,
-                                       agents=config.agents,
-                                       use_unet=config.use_unet,
-                                       unet_init_features=config.unet_init_features)
+                                       agents=config.agents)
     
     trainer = Trainer(test_environment=test_env,
                      task="train",
@@ -85,8 +78,7 @@ def test_model(config : ExperimentConfig, model_name, logger, dataLoader : DataL
                      evaluation_steps=config.evaluation_steps,
                      lr=config.lr,
                      gamma=config.gamma,
-                     tau=config.tau,
-                     use_unet=config.use_unet)
+                     tau=config.tau)
     trainer.test()
     test_env.visualize_current_state()
 

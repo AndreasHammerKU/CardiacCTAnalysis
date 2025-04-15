@@ -11,8 +11,8 @@ from bin.RLModels.Encoder import FeatureEncoder
 from torch.distributions import Categorical
 
 class A2C(RLModel):
-    def __init__(self, action_dim, logger=None, model_name=None, model_type="Network3D", attention=False, experiment=Experiment.WORK_ALONE, n_sample_points=5, n_actions=6, lr=0.001, gamma=0.9, max_epsilon=1, min_epsilon=0.01, decay=250, agents=6, tau=0.005, use_unet=False):
-        super().__init__(action_dim, logger, model_name, model_type, attention, experiment, n_sample_points, n_actions, lr, gamma, max_epsilon, min_epsilon, decay, agents, tau, use_unet)
+    def __init__(self, action_dim, logger=None, model_name=None, model_type="Network3D", attention=False, experiment=Experiment.WORK_ALONE, n_sample_points=5, n_actions=6, lr=0.001, gamma=0.9, max_epsilon=1, min_epsilon=0.01, decay=250, agents=6, tau=0.005):
+        super().__init__(action_dim, logger, model_name, model_type, attention, experiment, n_sample_points, n_actions, lr, gamma, max_epsilon, min_epsilon, decay, agents, tau)
 
         self.agents = agents
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -103,16 +103,14 @@ class Actor(nn.Module):
     def __init__(self, agents, 
                        n_sample_points, 
                        number_actions,  
-                       experiment=Experiment.WORK_ALONE, 
-                       use_unet=False):
+                       experiment=Experiment.WORK_ALONE):
         super().__init__()
 
         self.experiment = experiment
         self.agents = agents
         self.n_sample_points = n_sample_points
-        self.use_unet = use_unet
         self.n_features = 512
-        self.encoder = FeatureEncoder(in_channels=n_sample_points + (self.use_unet*n_sample_points), n_features=self.n_features)
+        self.encoder = FeatureEncoder(in_channels=n_sample_points, n_features=self.n_features)
 
         self.actor_head = nn.ModuleList(
             [nn.Linear(in_features=self.n_features, out_features=number_actions) for _ in range(self.agents)])
@@ -136,16 +134,14 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     def __init__(self, agents, 
                        n_sample_points, 
-                       experiment=Experiment.WORK_ALONE, 
-                       use_unet=False):
+                       experiment=Experiment.WORK_ALONE):
         super().__init__()
 
         self.experiment = experiment
         self.agents = agents
         self.n_sample_points = n_sample_points
-        self.use_unet = use_unet
         self.n_features = 512
-        self.encoder = FeatureEncoder(in_channels=n_sample_points + (self.use_unet*n_sample_points), n_features=self.n_features)
+        self.encoder = FeatureEncoder(in_channels=n_sample_points, n_features=self.n_features)
 
         self.critic_head = nn.ModuleList(
             [nn.Linear(in_features=self.n_features, out_features=1) for _ in range(self.agents)])

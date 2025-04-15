@@ -38,8 +38,7 @@ class Trainer:
                         evaluation_steps=30,
                         episodes=50,
                         image_interval=1,
-                        evaluation_interval=10,
-                        use_unet=False):
+                        evaluation_interval=10):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.env = train_environment
         self.experiment = experiment
@@ -70,8 +69,7 @@ class Trainer:
                                 min_epsilon=min_epsilon,
                                 decay=decay,
                                 n_actions=self.env.n_actions if task == "train" else self.test_env.n_actions,
-                                n_sample_points=self.env.n_sample_points if task == "train" else self.test_env.n_sample_points,
-                                use_unet=use_unet)
+                                n_sample_points=self.env.n_sample_points if task == "train" else self.test_env.n_sample_points)
         elif self.rl_framework == "A2C":
             self.rl_model = A2C(action_dim=action_dim, 
                                 logger=logger, 
@@ -84,8 +82,7 @@ class Trainer:
                                 min_epsilon=min_epsilon,
                                 decay=decay,
                                 n_actions=self.env.n_actions if task == "train" else self.test_env.n_actions,
-                                n_sample_points=self.env.n_sample_points if task == "train" else self.test_env.n_sample_points,
-                                use_unet=use_unet)
+                                n_sample_points=self.env.n_sample_points if task == "train" else self.test_env.n_sample_points)
         
         self.memory = ReplayMemory(capacity=1000)
 

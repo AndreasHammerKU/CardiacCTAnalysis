@@ -19,8 +19,7 @@ class RLModel:
                         min_epsilon=0.01, 
                         decay=250, 
                         agents=6, 
-                        tau=0.005,
-                        use_unet=False):
+                        tau=0.005):
         self.action_dim = action_dim
         self.n_actions = n_actions
         self.n_sample_points = n_sample_points
@@ -31,7 +30,6 @@ class RLModel:
         self.decay = decay
         self.agents = agents
         self.lr = lr
-        self.use_unet = use_unet
         self.logger = logger
         self.experiment = experiment
         self.attention = attention
