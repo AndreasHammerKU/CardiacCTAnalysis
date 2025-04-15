@@ -92,6 +92,18 @@ class Trainer:
             self.rl_model.load_model(dataLoader=dataLoader, model_name=model_name)
             self.rl_model.eval()
             self.logger.debug(f"Loaded Policy net {model_name}")
+        
+        self.logger.debug(f"Initialized Trainer with parameters:\n"
+                          f"Episodes: {episodes}\n"
+                          f"Max Steps: {max_steps}\n"
+                          f"Decay: {decay}\n"
+                          f"Max epsilon: {max_epsilon}\n"
+                          f"Min epsilon: {min_epsilon}\n"
+                          f"Gamma: {gamma}\n"
+                          f"Learning Rate: {lr}\n"
+                          f"Model Type: {model_type}\n"
+                          f"Experiment: {experiment.name}\n"
+                          f"Tau: {tau}")
 
     def train(self):
         batch_size = 32
