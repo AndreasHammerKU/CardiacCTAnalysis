@@ -31,7 +31,6 @@ class FeatureEncoder(nn.Module):
         block = nn.Sequential(
             nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
             nn.MaxPool3d(kernel_size=2, stride=2),
-            nn.BatchNorm3d(out_channels),
             nn.PReLU()
         )
         return block
