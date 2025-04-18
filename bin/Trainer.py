@@ -55,6 +55,7 @@ class Trainer:
         self.model_type = model_type
         self.attention = attention
         self.model_name = model_name
+        self.current_episode = 0
 
         self.rl_framework = rl_framework
         if self.rl_framework == "DQN":
@@ -107,6 +108,7 @@ class Trainer:
 
     def train(self):
         for episode in range(self.episodes):
+            self.current_episode = episode
             if (episode) % self.image_interval == 0:
                 self.env.get_next_image()
             state = self.env.reset()
@@ -164,13 +166,18 @@ class Trainer:
                 closest_point = np.minimum(closest_point, current_distances)
                 furthest_point = np.maximum(furthest_point, current_distances)
 
-            errors = self.env.get_curve_error(t_values=np.linspace(0,1, 100))
+            avg_error_mm = self.env.get_curve_error(t_values=np.linspace(0,1, 100))
+            worst_error_mm = self.env.get_curve_error(t_values=np.array([0.5]))
+            end_avg_dist = np.mean(current_distances)
+            avg_closest_point = np.mean(closest_point)
+            avg_furthest_point = np.mean(furthest_point)
             self.logger.info(
-                    f"Episode {episode + 1}: Total Reward = {total_reward:.2f} | Final Avg Distance {np.mean(current_distances):.2f} | "
-                    f"Distances in mm {np.round(errors,2)} | Avg Closest Point = {np.mean(closest_point):.2f} | "
-                    f"Avg Furthest Point = {np.mean(furthest_point):.2f}"
+                    f"Episode {episode + 1}: Total Reward = {total_reward:.2f} | "
+                    f"Final Avg Distance {end_avg_dist:.2f} | Average error in mm {np.round(avg_error_mm,2)} | Worst Error in mm {np.round(worst_error_mm, 2)} "
+                    f"Avg Closest Point = {avg_closest_point:.2f} | Avg Furthest Point = {avg_furthest_point:.2f}"
             )
-
+            self.logger.insert_train_row(episode+1, total_reward, end_avg_dist, avg_error_mm, worst_error_mm, avg_closest_point, avg_furthest_point)
+                
             if (episode + 1) % self.eval_interval == 0:
                 self.logger.info(f"===== Validation Run =====")
                 self._evaluate(self.eval_env)
@@ -186,8 +193,8 @@ class Trainer:
 
         self.rl_model.eval()
 
-        evaluation_errors_100 = []
-        evaluation_errors_1 = []
+        evaluation_errors_avg = []
+        evaluation_errors_worst = []
         with torch.no_grad():  # No gradient tracking needed for evaluation
             for episode in range(len(environment.image_list)):
                 environment.get_next_image()
@@ -204,9 +211,9 @@ class Trainer:
                     location_data = None
                     next_location_data = None
 
-                closest_distances = np.full(self.agents, float('inf'))
-                furthest_distances = np.zeros(self.agents)
-                total_rewards = 0
+                closest_point = np.full(self.agents, float('inf'))
+                furthest_point = np.zeros(self.agents)
+                total_reward = 0
                 found_truth = np.zeros(self.agents, dtype=bool)
                 self.total_steps = 0
 
@@ -230,37 +237,33 @@ class Trainer:
                         location_data = next_location_data
 
                     state = next_state
-                    
-                    total_rewards += rewards.mean(dim=0).item()
-
-                    current_distances = environment.distance_to_truth
-                    closest_distances = np.minimum(closest_distances, current_distances)
-                    furthest_distances = np.maximum(furthest_distances, current_distances)
 
                     self.total_steps += 1
+                    total_reward += rewards.mean(dim=0).item()
+                    current_distances = environment.distance_to_truth
+                    closest_point = np.minimum(closest_point, current_distances)
+                    furthest_point = np.maximum(furthest_point, current_distances)
 
-
-                errors_100 = environment.get_curve_error(t_values=np.linspace(0,1, 100))
-                errors_1 = environment.get_curve_error(t_values=np.array([0.5]))
-                
-                evaluation_errors_100.append(errors_100)
-                evaluation_errors_1.append(errors_1)
-                #success_counts += found_truth.astype(int)  # Count successes per agent
+                avg_error_mm = self.env.get_curve_error(t_values=np.linspace(0,1, 100))
+                worst_error_mm = self.env.get_curve_error(t_values=np.array([0.5]))
+                end_avg_dist = np.mean(current_distances)
+                avg_closest_point = np.mean(closest_point)
+                avg_furthest_point = np.mean(furthest_point)
                 self.logger.info(
-                    f"Evaluation Episode {episode + 1}: Total Reward = {total_rewards:.2f} | Final Average Distance = {np.mean(current_distances):.2f} | "
-                    f"Error in mm {np.round(errors_1,2)} | Closest Point = {np.round(closest_distances, 2)} | "
-                    f"Furthest Point = {np.round(furthest_distances, 2)}"
+                        f"Evaluation Episode {episode + 1}: Total Reward = {total_reward:.2f} | "
+                        f"Final Avg Distance {end_avg_dist:.2f} | Average error in mm {np.round(avg_error_mm,2)} | Worst Error in mm {np.round(worst_error_mm, 2)} "
+                        f"Avg Closest Point = {avg_closest_point:.2f} | Avg Furthest Point = {avg_furthest_point:.2f}"
                 )
-        make_boxplot(evaluation_errors_100)
-        make_boxplot(evaluation_errors_1)
-
-        avg_closest = closest_distances.mean()
-        avg_furthest = furthest_distances.mean()
+                self.logger.insert_val_row(self.current_episode+1, episode+1, total_reward, end_avg_dist, avg_error_mm, worst_error_mm, avg_closest_point, avg_furthest_point)
+                
+                evaluation_errors_avg.append(avg_error_mm)
+                evaluation_errors_worst.append(worst_error_mm)
+                #success_counts += found_truth.astype(int)  # Count successes per agent
+        self.logger.info("===== Evaluation Summary =====")
+        #make_boxplot(evaluation_errors_avg)
+        #make_boxplot(evaluation_errors_worst)
 
         self.rl_model.train()  # Return to train mode
-        self.logger.info("===== Evaluation Summary =====")
-        self.logger.info(f"Average Closest Distance Across Agents: {avg_closest:.2f}")
-        self.logger.info(f"Average Furthest Distance Across Agents: {avg_furthest:.2f}")
 
     def test(self):
         self._evaluate(self.test_env)

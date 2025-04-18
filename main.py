@@ -1,11 +1,12 @@
-import utils.logger as logs
+from utils.logger import setup_logger, MedicalLogger
 from utils.parser import ExperimentConfig, load_config_from_yaml, parse_args
 from bin.Environment import MedicalImageEnvironment
 from bin.DataLoader import DataLoader
 from bin.Trainer import Trainer
 import constants as c
 
-def train_model(config : ExperimentConfig, model_name, logger, dataLoader : DataLoader):
+def train_model(config : ExperimentConfig, model_name, logger : MedicalLogger, dataLoader : DataLoader):
+    logger.create_dataframes()
     # Train split
     train_env = MedicalImageEnvironment(logger=logger,
                                         task="train",
@@ -46,10 +47,12 @@ def train_model(config : ExperimentConfig, model_name, logger, dataLoader : Data
                      tau=config.tau)
     
     trainer.train()
+    logger.save_to_hdf5(config_obj=config)
     train_env.visualize_current_state()
     eval_env.visualize_current_state()
 
-def test_model(config : ExperimentConfig, model_name, logger, dataLoader : DataLoader, external=False):
+def test_model(config : ExperimentConfig, model_name, logger : MedicalLogger, dataLoader : DataLoader, external=False):
+    logger.create_dataframes()
     # Evaluation split
     test_env = MedicalImageEnvironment(logger=logger,
                                        task="eval",
@@ -80,12 +83,13 @@ def test_model(config : ExperimentConfig, model_name, logger, dataLoader : DataL
                      gamma=config.gamma,
                      tau=config.tau)
     trainer.test()
+    logger.save_to
     test_env.visualize_current_state()
 
 def main():
     args = parse_args()
 
-    logger = logs.setup_logger(args.debug)
+    logger = setup_logger(args.debug)
     
     dataLoader = DataLoader(c.DATASET_FOLDER, logger=logger, seed=1)
     

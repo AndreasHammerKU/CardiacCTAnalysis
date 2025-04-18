@@ -11,7 +11,7 @@ agents: 6
 tau: 0.01
 max_steps: 1
 evaluation_steps: 1
-episodes: 100
+episodes: 6
 image_interval: 1
 evaluation_interval: 5
 n_sample_points: 5

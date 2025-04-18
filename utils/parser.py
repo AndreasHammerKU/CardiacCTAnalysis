@@ -51,6 +51,27 @@ class ExperimentConfig:
         self.evaluation_interval=evaluation_interval
         self.n_sample_points=n_sample_points
 
+    def to_dict(self):
+        return {
+            'model_type': self.model_type,
+            'attention': self.attention,
+            'experiment': self.experiment.name,  # enum to string
+            'rl_framework': self.rl_framework,
+            'lr': self.lr,
+            'gamma': self.gamma,
+            'max_epsilon': self.max_epsilon,
+            'min_epsilon': self.min_epsilon,
+            'decay': self.decay,
+            'agents': self.agents,
+            'tau': self.tau,
+            'max_steps': self.max_steps,
+            'evaluation_steps': self.evaluation_steps,
+            'episodes': self.episodes,
+            'image_interval': self.image_interval,
+            'evaluation_interval': self.evaluation_interval,
+            'n_sample_points': self.n_sample_points
+        }
+
 def load_config_from_yaml(path: str) -> ExperimentConfig:
     with open(path, 'r') as file:
         config_data = yaml.safe_load(file)
