@@ -244,8 +244,8 @@ class Trainer:
                     closest_point = np.minimum(closest_point, current_distances)
                     furthest_point = np.maximum(furthest_point, current_distances)
 
-                avg_error_mm = self.env.get_curve_error(t_values=np.linspace(0,1, 100))
-                worst_error_mm = self.env.get_curve_error(t_values=np.array([0.5]))
+                avg_error_mm = environment.get_curve_error(t_values=np.linspace(0,1, 100))
+                worst_error_mm = environment.get_curve_error(t_values=np.array([0.5]))
                 end_avg_dist = np.mean(current_distances)
                 avg_closest_point = np.mean(closest_point)
                 avg_furthest_point = np.mean(furthest_point)

@@ -83,7 +83,7 @@ def test_model(config : ExperimentConfig, model_name, logger : MedicalLogger, da
                      gamma=config.gamma,
                      tau=config.tau)
     trainer.test()
-    logger.save_to
+    logger.save_to_hdf5(config_obj=config)
     test_env.visualize_current_state()
 
 def main():
