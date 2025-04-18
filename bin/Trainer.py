@@ -260,8 +260,8 @@ class Trainer:
                 evaluation_errors_worst.append(worst_error_mm)
                 #success_counts += found_truth.astype(int)  # Count successes per agent
         self.logger.info("===== Evaluation Summary =====")
-        #make_boxplot(evaluation_errors_avg)
-        #make_boxplot(evaluation_errors_worst)
+        make_boxplot(evaluation_errors_avg)
+        make_boxplot(evaluation_errors_worst)
 
         self.rl_model.train()  # Return to train mode
 
