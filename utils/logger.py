@@ -1,6 +1,7 @@
 import logging
 import pandas as pd
 from datetime import datetime
+import os
 
 class MedicalLogger:
     def __init__(self, debug=False):
@@ -56,12 +57,12 @@ class MedicalLogger:
         return run_id, filename
 
     # --- Save & Load to/from HDF5 ---
-    def save_to_hdf5(self, config_obj):
+    def save_to_hdf5(self, config_obj, directory='.'):
         if not hasattr(config_obj, 'to_dict'):
             raise ValueError("Config object must have a to_dict() method.")
         config_dict = config_obj.to_dict()
         run_id, filename = self.generate_run_id(config_dict)
-        
+        filename = os.path.join(directory, filename)
         self.info(f"Saving training and validation data to {filename}")
         with pd.HDFStore(filename) as store:
             store["train_epochs"] = self.train_df

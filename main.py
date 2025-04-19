@@ -47,9 +47,9 @@ def train_model(config : ExperimentConfig, model_name, logger : MedicalLogger, d
                      tau=config.tau)
     
     trainer.train()
-    logger.save_to_hdf5(config_obj=config)
-    train_env.visualize_current_state()
-    eval_env.visualize_current_state()
+    logger.save_to_hdf5(config_obj=config, directory="logs")
+    #train_env.visualize_current_state()
+    #eval_env.visualize_current_state()
 
 def test_model(config : ExperimentConfig, model_name, logger : MedicalLogger, dataLoader : DataLoader, external=False):
     logger.create_dataframes()
