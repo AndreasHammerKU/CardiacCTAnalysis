@@ -1,24 +1,34 @@
 import os
 
-NEW_DATA = "_2025_aortic_valves"
+NEW_DATA = '_2025_aortic_valves'
 
-OLD_DATA = "Dataset"
+OLD_DATA = 'Dataset'
 
-DATASET_FOLDER = os.path.join(os.path.expanduser("~"), "Desktop", OLD_DATA)
+FIGURE_FOLDER = os.path.join('.', 'figures')
 
-ROI_FOLDER = "roi"
+DATASET_FOLDER = os.path.join(os.path.expanduser('~'), 'Desktop', NEW_DATA)
 
-LANDMARKS_FOLDER = "json_markers_info"
+LOGS_FOLDER = os.path.join(os.path.expanduser('~'), 'Desktop', 'logs')
 
-IMAGE_FOLDER = "nii_convert"
+TRAIN_LOGS = 'train'
 
-EXTERNAL_DATA = "External_Hospital"
+TEST_LOGS = 'test'
 
-NORMAL_DATA = "Normal"
+TEST_EXTERNAL_LOGS = 'test_external'
 
-PATHOLOGICAL_DATA = "Pathology"
+ROI_FOLDER = 'roi'
 
-LANDMARKS_MASK_FOLDER = "landmark_masks"
+LANDMARKS_FOLDER = 'json_markers_info'
+
+IMAGE_FOLDER = 'nii_convert'
+
+EXTERNAL_DATA = 'External_Hospital'
+
+NORMAL_DATA = 'Normal'
+
+PATHOLOGICAL_DATA = 'Pathology'
+
+LANDMARKS_MASK_FOLDER = 'landmark_masks'
 
 ANCHOR_DATAPOINTS = ['R', 'L', 'N', 'RLC', 'RNC', 'LNC']
 

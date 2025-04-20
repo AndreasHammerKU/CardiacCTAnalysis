@@ -5,6 +5,11 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 import scipy
 import utils.geometry_fitting as geom
+from utils.logger import MedicalLogger
+from glob import glob
+import constants as c
+import os
+import matplotlib.pyplot as plt
 
 def _create_slice_viewer(nifti_data, landmark_data):
     slices = nifti_data.shape[2]
@@ -223,3 +228,133 @@ def view_curve(image_name, dataLoader):
     print("Average error in rps image {} is {}".format(image_name, geometry.get_average_mse()))
 
     geometry.plot(plot_label_points=True, plot_control_points=True)
+
+
+def visualize_from_logs(logger, save_path=None, viz_name=""):
+
+
+    train_files = glob(os.path.join(c.LOGS_FOLDER, c.TRAIN_LOGS, '*'))
+    test_files = glob(os.path.join(c.LOGS_FOLDER, c.TEST_LOGS, '*'))
+    test_external_files = glob(os.path.join(c.LOGS_FOLDER, c.TEST_EXTERNAL_LOGS, '*'))
+    
+    # Train data
+    train_dfs = []
+    val_dfs = []
+    configs = []
+    run_ids = []
+
+    for file in train_files:
+        if os.path.isfile(file):
+            train_df, val_df, config, run_id = logger.load_from_hdf5(file)
+            train_dfs.append(train_df)
+            val_dfs.append(val_df)
+            configs.append(config)
+            run_ids.append(run_id)
+
+    # Plot training validation loss
+    plot_validation_loss(val_dfs, configs, run_ids, save_path=save_path, plot_name=f"validation-{viz_name}")
+
+    # Test (internal)
+    test_val_dfs = []
+    test_configs = []
+    test_run_ids = []
+
+    for file in test_files:
+        if os.path.isfile(file):
+            _, val_df, config, run_id = logger.load_from_hdf5(file)
+            test_val_dfs.append(val_df)
+            test_configs.append(config)
+            test_run_ids.append(run_id)
+
+    # Test (external)
+    test_ext_val_dfs = []
+    test_ext_configs = []
+    test_ext_run_ids = []
+
+    for file in test_external_files:
+        if os.path.isfile(file):
+            _, val_df, config, run_id = logger.load_from_hdf5(file)
+            test_ext_val_dfs.append(val_df)
+            test_ext_configs.append(config)
+            test_ext_run_ids.append(run_id)
+
+    # Plot boxplots
+    boxplot_test_errors(test_val_dfs, test_configs, test_run_ids, title_suffix=" (Internal)", save_path=save_path, plot_name=f"internal-test-{viz_name}")
+    boxplot_test_errors(test_ext_val_dfs, test_ext_configs, test_ext_run_ids, title_suffix=" (External)", save_path=save_path, plot_name=f"external-test-{viz_name}")
+
+def plot_validation_loss(val_dfs, configs, run_ids, save_path=None, plot_name=None):
+    plt.figure(figsize=(12, 6))
+    
+    for val_df, config, run_id in zip(val_dfs, configs, run_ids):
+        if 'train_episode' in val_df.columns and 'avg_err_in_mm' in val_df.columns:
+            # Step 1: Compute mean of each list in avg_err_in_mm
+            val_df = val_df.copy()
+            val_df['mean_agent_error'] = val_df['avg_err_in_mm'].apply(lambda x: np.mean(x) if isinstance(x, (list, np.ndarray)) else np.nan)
+
+            # Step 2: Group by train_episode and average those means
+            grouped = val_df.groupby('train_episode')['mean_agent_error'].mean()
+
+            model = config.get("model_type", "UnknownModel")
+            experiment = getattr(config.get("experiment", "UnknownExperiment"), "name", str(config.get("experiment")))
+            label = f"{model}-{experiment}"
+
+            # Step 3: Plot
+            plt.plot(grouped.index, grouped.values, label=label)
+
+    plt.title("Validation Loss Across Runs (Mean of Avg Errors per Agent per Episode)")
+    plt.xlabel("Train Episode")
+    plt.ylabel("Mean Validation Error (mm)")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(os.path.join(save_path, plot_name) + ".png", format='png')
+    else:
+        plt.show()
+
+def boxplot_test_errors(val_dfs, configs, run_ids, title_suffix="", save_path=None, plot_name=None):
+    runs = []
+
+    for val_df, config, run_id in zip(val_dfs, configs, run_ids):
+        if 'avg_err_in_mm' in val_df.columns:
+            val_df = val_df.copy()
+            val_df['mean_agent_error'] = val_df['avg_err_in_mm'].apply(
+                lambda x: np.mean(x) if isinstance(x, (list, np.ndarray)) else np.nan
+            )
+
+            errors = val_df['mean_agent_error'].dropna().values
+
+            model = config.get("model_type", "UnknownModel")
+            experiment_raw = config.get("experiment", "UnknownExperiment")
+            experiment = getattr(experiment_raw, "name", str(experiment_raw))
+
+            runs.append({
+                "errors": errors,
+                "label": f"{experiment}-{model}",
+                "experiment": experiment,
+                "model_type": model
+            })
+
+    # Sort by experiment, then model_type
+    sort_order = ["WORK_ALONE", "SHARE_POSITIONS", "SHARE_PAIRWISE", "Network3D", "CommNet"]
+    runs.sort(key=lambda r: (sort_order.index(r["experiment"]), sort_order.index(r["model_type"])))
+
+    # Unpack sorted data
+    data = [r["errors"] for r in runs]
+    labels = [r["label"] for r in runs]
+
+    # Plot boxplot
+    plt.figure(figsize=(12, 6))
+    plt.boxplot(data, labels=labels, showfliers=True)
+
+    plt.ylim((0,12))
+    plt.yticks(np.arange(0,13))
+    plt.xticks(rotation=45, ha='right')
+    plt.title(f"Distribution of Mean Agent Errors per Test Run{title_suffix}")
+    plt.ylabel("Mean Error per Agent (mm)")
+    plt.grid(True, axis='y')
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(os.path.join(save_path, plot_name) + ".png", format='png')
+    else:
+        plt.show()

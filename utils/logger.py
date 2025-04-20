@@ -63,7 +63,7 @@ class MedicalLogger:
         config_dict = config_obj.to_dict()
         run_id, filename = self.generate_run_id(config_dict)
         filename = os.path.join(directory, filename)
-        self.info(f"Saving training and validation data to {filename}")
+        self.debug(f"Saving training and validation data to {filename}")
         with pd.HDFStore(filename) as store:
             store["train_epochs"] = self.train_df
             store["val_epochs"] = self.val_df
@@ -73,7 +73,7 @@ class MedicalLogger:
         return filename
 
     def load_from_hdf5(self, filename):
-        self.info(f"Loading training and validation data from {filename}")
+        self.debug(f"Loading training and validation data from {filename}")
         with pd.HDFStore(filename) as store:
             train_df = store["train_epochs"]
             val_df = store["val_epochs"]
