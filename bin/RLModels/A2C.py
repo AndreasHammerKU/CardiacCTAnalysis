@@ -53,7 +53,7 @@ class A2C(RLModel):
         dones = torch.cat([d.unsqueeze(0) for d in batch.done], dim=0)
         
         # Compute the average reward across agents for each transition
-        #rewards += torch.mean(rewards, axis=1).unsqueeze(1).repeat(1, rewards.shape[1])
+        rewards += torch.mean(rewards, axis=1).unsqueeze(1).repeat(1, rewards.shape[1])
         # Critic Loss (Value Function Loss)
 
         locations = torch.cat([l.unsqueeze(0) for l in batch.location], dim=0) if self.experiment != Experiment.WORK_ALONE else None
@@ -73,7 +73,7 @@ class A2C(RLModel):
         action_probs = self.actor(states)
 
         log_action_probs = torch.log(action_probs.gather(2, actions).squeeze(-1))
-        actor_loss = -(td_error.detach() * log_action_probs).mean()
+        actor_loss = (td_error.detach() * -log_action_probs).mean()
         
         self.critic_optim.zero_grad()
         self.actor_optim.zero_grad()
