@@ -1,7 +1,7 @@
 model_type: Network3D
 attention: false
 experiment: WORK_ALONE
-rl_framework: DQN
+rl_framework: A2C
 lr: 0.001
 gamma: 0.95
 max_epsilon: 1.0
@@ -9,9 +9,9 @@ min_epsilon: 0.05
 decay: 150
 agents: 6
 tau: 0.01
-max_steps: 1
-evaluation_steps: 1
+max_steps: 500
+evaluation_steps: 2
 episodes: 6
-image_interval: 1
-evaluation_interval: 5
+image_interval: 2
+evaluation_interval: 10
 n_sample_points: 5

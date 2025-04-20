@@ -72,7 +72,8 @@ class A2C(RLModel):
         # Actor Loss (Policy Gradient Loss)
         action_probs = self.actor(states)
 
-        log_action_probs = torch.log(action_probs.gather(2, actions).squeeze(-1))
+        eps = 1e-6
+        log_action_probs = torch.log(action_probs.gather(2, actions).squeeze(-1) + eps)
         actor_loss = (td_error.detach() * -log_action_probs).mean()
         
         self.critic_optim.zero_grad()
