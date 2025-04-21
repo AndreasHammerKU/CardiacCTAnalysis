@@ -11,6 +11,7 @@ from bin.Memory import ReplayMemory, Transition
 from bin.Environment import MedicalImageEnvironment
 from bin.RLModels.DQN import DQN
 from bin.RLModels.A2C import A2C
+from bin.RLModels.DDQN import DDQN
 from utils.parser import Experiment
 import matplotlib.pyplot as plt
 
@@ -60,6 +61,19 @@ class Trainer:
         self.rl_framework = rl_framework
         if self.rl_framework == "DQN":
             self.rl_model = DQN(action_dim=action_dim, 
+                                logger=logger, 
+                                gamma=gamma, 
+                                model_type=model_type,
+                                experiment=self.experiment,
+                                tau=tau,
+                                lr=lr,
+                                max_epsilon=max_epsilon,
+                                min_epsilon=min_epsilon,
+                                decay=decay,
+                                n_actions=self.env.n_actions if task == "train" else self.test_env.n_actions,
+                                n_sample_points=self.env.n_sample_points if task == "train" else self.test_env.n_sample_points)
+        elif self.rl_framework == "DDQN":
+            self.rl_model = DDQN(action_dim=action_dim, 
                                 logger=logger, 
                                 gamma=gamma, 
                                 model_type=model_type,

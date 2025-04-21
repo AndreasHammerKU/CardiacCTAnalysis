@@ -1,7 +1,7 @@
 model_type: Network3D
 attention: false
 experiment: WORK_ALONE
-rl_framework: A2C
+rl_framework: DDQN
 lr: 0.001
 gamma: 0.95
 max_epsilon: 1.0
