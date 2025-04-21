@@ -139,7 +139,7 @@ class Trainer:
                 next_state, next_location_data, rewards, done = self.env.step(actions)
 
                 # Format output
-                rewards = torch.tensor(rewards, device=self.device)
+                rewards = torch.tensor(rewards, dtype=torch.float32, device=self.device)
                 next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
                 done = torch.tensor(done, dtype=torch.int, device=self.device)
                 

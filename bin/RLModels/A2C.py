@@ -59,22 +59,22 @@ class A2C(RLModel):
         locations = torch.cat([l.unsqueeze(0) for l in batch.location], dim=0) if self.experiment != Experiment.WORK_ALONE else None
         next_locations = torch.cat([l.unsqueeze(0) for l in batch.next_location], dim=0) if self.experiment != Experiment.WORK_ALONE else None
 
-        values = self.critic(states)
-        next_values = self.critic(next_states)
+        values = self.critic(states, locations).view(-1, self.agents)
+        next_values = self.critic(next_states, next_locations).view(-1, self.agents)
 
         # Check if agents is done
-        next_values = (1 - dones.squeeze(-1)) * next_values.view(-1, self.agents)
+        next_values = (1 - dones.squeeze(-1)) * next_values
 
+        # Critic loss
         td_target = rewards + self.gamma * next_values
-        td_error = td_target - values.view(-1, self.agents)
-        critic_loss = td_error.pow(2).mean()
+        advantage = td_target - values
+        critic_loss = F.mse_loss(values, td_target.detach())
 
         # Actor Loss (Policy Gradient Loss)
-        action_probs = self.actor(states)
-
-        eps = 1e-6
-        log_action_probs = torch.log(action_probs.gather(2, actions).squeeze(-1) + eps)
-        actor_loss = (td_error.detach() * -log_action_probs).mean()
+        action_probs = self.actor(states, locations)
+        dist = Categorical(action_probs)
+        log_prob = dist.log_prob(actions.view(-1, self.n_actions))
+        actor_loss = (-log_prob * advantage.detach()).mean()
         
         self.critic_optim.zero_grad()
         self.actor_optim.zero_grad()
