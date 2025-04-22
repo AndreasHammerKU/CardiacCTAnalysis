@@ -109,6 +109,7 @@ class Trainer:
             self.logger.debug(f"Loaded Policy net {model_name}")
         
         self.logger.debug(f"Initialized Trainer with parameters:\n"
+                          f"Reinforcement framework {rl_framework}"
                           f"Episodes: {episodes}\n"
                           f"Max Steps: {max_steps}\n"
                           f"Decay: {decay}\n"
