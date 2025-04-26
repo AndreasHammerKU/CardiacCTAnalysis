@@ -51,7 +51,7 @@ class MedicalLogger:
 
     def generate_run_id(self, config_dict):
         timestamp = datetime.now().strftime("%Y%m%d-%H%M")
-        run_id = f"{config_dict['model_type']}-{config_dict['experiment']}-{timestamp}"
+        run_id = f"{config_dict['rl_framework']}-{config_dict['model_type']}-{config_dict['experiment']}-{timestamp}"
         filename = run_id + ".h5"
         self.debug(f"Generated run_id: {run_id}, filename: {filename}")
         return run_id, filename

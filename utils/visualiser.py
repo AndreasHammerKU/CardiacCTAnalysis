@@ -230,13 +230,13 @@ def view_curve(image_name, dataLoader):
     geometry.plot(plot_label_points=True, plot_control_points=True)
 
 
-def visualize_from_logs(logger, save_path=None, viz_name=""):
+def visualize_from_logs(logger, save_path=None, experiment=c.DQN_LOGS, viz_name=""):
 
 
-    train_files = glob(os.path.join(c.LOGS_FOLDER, c.TRAIN_LOGS, '*'))
-    test_files = glob(os.path.join(c.LOGS_FOLDER, c.TEST_LOGS, '*'))
-    test_external_files = glob(os.path.join(c.LOGS_FOLDER, c.TEST_EXTERNAL_LOGS, '*'))
-    
+    train_files = glob(os.path.join(c.LOGS_FOLDER, experiment, c.TRAIN_LOGS, '*'))
+    test_files = glob(os.path.join(c.LOGS_FOLDER, experiment, c.TEST_LOGS, '*'))
+    test_external_files = glob(os.path.join(c.LOGS_FOLDER, experiment, c.TEST_EXTERNAL_LOGS, '*'))
+    print(train_files)
     # Train data
     train_dfs = []
     val_dfs = []
@@ -246,6 +246,7 @@ def visualize_from_logs(logger, save_path=None, viz_name=""):
     for file in train_files:
         if os.path.isfile(file):
             train_df, val_df, config, run_id = logger.load_from_hdf5(file)
+            print(train_df.head(5))
             train_dfs.append(train_df)
             val_dfs.append(val_df)
             configs.append(config)

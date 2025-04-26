@@ -9,6 +9,7 @@ from scipy.spatial import KDTree
 from scipy.special import comb
 import plotly.graph_objects as go
 from bin.DataLoader import DataLoader
+from pycpd import AffineRegistration
 import torch
 
 class MedicalImageEnvironment(gym.Env):
@@ -19,7 +20,9 @@ class MedicalImageEnvironment(gym.Env):
                        vision_size=(21, 21, 21), 
                        agents=6, 
                        image_list=None, 
-                       logger=None):
+                       logger=None,
+                       train_images=None,
+                       trim_image=False):
 
         super(MedicalImageEnvironment, self).__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -29,6 +32,7 @@ class MedicalImageEnvironment(gym.Env):
 
         self.agents = agents
         self.task = task
+        self.trim_image = trim_image
         
         self.actions = [(-1, 0, 0), (1, 0, 0), (0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1)]
         self.n_actions = len(self.actions)
@@ -46,6 +50,27 @@ class MedicalImageEnvironment(gym.Env):
 
         if task != "train":
             self.current_image = 0
+        
+        if task != "train":
+            assert train_images is not None
+            self.train_images = train_images
+            self._load_train_landmarks()
+    
+    def _load_train_landmarks(self):
+        self.train_landmarks = np.zeros((len(self.train_images), self.agents, 3))
+        self.train_ground_truth = np.zeros((len(self.train_images), self.agents, 3))
+
+        for i in range(len(self.train_images)):
+            print(f"Loading for image {i} out of {len(self.train_images)}")
+            _, _, voxel_landmarks = self.dataLoader.load_data(image_name=self.train_images[i], trim_image=self.trim_image)
+
+            geometry = LeafletGeometry(voxel_landmarks)
+            geometry.calculate_bezier_curves()
+
+            p0, ground_truthes, _ = zip(*geometry.Control_points)
+            self.train_landmarks[i] = np.array(p0)
+            self.train_ground_truth[i] = np.array(ground_truthes)
+
 
     def get_next_image(self):
         if self.task == "train":
@@ -56,22 +81,68 @@ class MedicalImageEnvironment(gym.Env):
             if self.current_image >= len(self.image_list):
                 self.current_image = 0
         
-        self.image, self.affine, voxel_landmarks = self.dataLoader.load_data(image_name=image_name, trim_image=False)
+        self.image, self.affine, voxel_landmarks = self.dataLoader.load_data(image_name=image_name, trim_image=self.trim_image)
         
         self.geometry = LeafletGeometry(voxel_landmarks)
         self.geometry.calculate_bezier_curves()
 
         self._p0, _ground_truth, self._p2 = zip(*self.geometry.Control_points)
         self._ground_truth = np.array(_ground_truth, dtype=np.int16)
+
+        if self.task != "train":
+            # Infer starting point
+            self.inferred_gt = self._get_test_starting_point(np.array(self._p0), self.train_landmarks, self.train_ground_truth)
         
         self.midpoint = [(self._p0[i] + self._p2[i]) // 2 for i in range(self.agents)]
+
+        self.distance_to_middle = np.linalg.norm(self.midpoint - self._ground_truth, axis=1)
+
+    def _get_test_starting_point(self, test_landmarks, train_landmarks, train_ground_truths):
+        """
+        test_anchors: (6, 3)
+        train_anchors: (n_images, 6, 3)
+        train_ground_truths: (n_images, 6, 3)
+        """
+        n_images = train_landmarks.shape[0]
+        inferred_landmarks = []
+        registration_errors = []
+    
+        for i in range(n_images):
+            train_anchor = train_landmarks[i]   # (6, 3)
+            train_gt = train_ground_truths[i] # (6, 3)
+    
+            reg = AffineRegistration(X=test_landmarks, Y=train_anchor)
+            TY, (B, t) = reg.register()
+    
+            # Transform the ground truth landmarks
+            inferred_gt = (train_gt @ B) + t  # (6, 3)
+            inferred_landmarks.append(inferred_gt)
+    
+            # Calculate registration error (simple L2 norm between matched anchors)
+            error = np.linalg.norm(test_landmarks - TY, axis=1).mean()
+            registration_errors.append(error)
+    
+        # Convert to arrays
+        inferred_landmarks = np.stack(inferred_landmarks)  # (n_images, 6, 3)
+        registration_errors = np.array(registration_errors)  # (n_images,)
+    
+        # Choose the best match (lowest error)
+        best_idx = np.argmin(registration_errors)
+        best_inferred_gt = inferred_landmarks[best_idx]
+    
+        return best_inferred_gt
 
     def reset(self):
         self._get_next_episode()
         return self.state
 
     def _get_next_episode(self):
-        self._location = np.array([(self.midpoint[i][0], self.midpoint[i][1], self.midpoint[i][2]) for i in range(self.agents)], dtype=np.int32)
+        # If in eval mode infer starting points
+        if self.task != "train":
+            self._location = np.array(self.inferred_gt, dtype=np.int32)
+        else:
+            self._location = np.array([(self.midpoint[i][0], self.midpoint[i][1], self.midpoint[i][2]) for i in range(self.agents)], dtype=np.int32)
+            
         self.state = self._update_state()
 
     def _update_state(self):

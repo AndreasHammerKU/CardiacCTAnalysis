@@ -88,7 +88,7 @@ def parse_args():
     # Task to perform (train / eval / test)
     parser.add_argument(
         "-t", "--task",
-        choices=["train", "eval", "test"],
+        choices=["train", "eval", "test", "debug"],
         required=True,
         help="Specify the task to run: 'train', 'eval', or 'test'."
     )
