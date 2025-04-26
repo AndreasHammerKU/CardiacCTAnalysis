@@ -52,9 +52,10 @@ class MedicalImageEnvironment(gym.Env):
         if task != "train":
             self.current_image = 0
         
-        assert train_images is not None
-        self.train_images = train_images
-        self._load_train_landmarks()
+        if task != "train":
+            assert train_images is not None
+            self.train_images = train_images
+            self._load_train_landmarks()
     
     def _load_train_landmarks(self):
         self.train_landmarks = np.zeros((len(self.train_images), self.agents, 3))
@@ -88,7 +89,8 @@ class MedicalImageEnvironment(gym.Env):
         self._p0, _ground_truth, self._p2 = zip(*self.geometry.Control_points)
         self._ground_truth = np.array(_ground_truth, dtype=np.int16)
 
-        self.inferred_gt = self._get_test_starting_point(np.array(self._p0), self.train_landmarks, self.train_ground_truth)
+        if self.task != "train":
+            self.inferred_gt = self._get_test_starting_point(np.array(self._p0), self.train_landmarks, self.train_ground_truth)
         
         self.midpoint = [(self._p0[i] + self._p2[i]) // 2 for i in range(self.agents)]
 
@@ -135,7 +137,10 @@ class MedicalImageEnvironment(gym.Env):
 
     def _get_next_episode(self):
         # If in eval mode infer starting points
-        self._location = np.array(self.inferred_gt, dtype=np.int32)
+        if self.task != "train":
+            self._location = np.array(self.inferred_gt, dtype=np.int32)
+        else:
+            self._location = np.array([(self.midpoint[i][0], self.midpoint[i][1], self.midpoint[i][2]) for i in range(self.agents)], dtype=np.int32)
         self.state = self._update_state()
 
     def _update_state(self):
