@@ -52,10 +52,9 @@ class MedicalImageEnvironment(gym.Env):
         if task != "train":
             self.current_image = 0
         
-        if task != "train":
-            assert train_images is not None
-            self.train_images = train_images
-            self._load_train_landmarks()
+        assert train_images is not None
+        self.train_images = train_images
+        self._load_train_landmarks()
     
     def _load_train_landmarks(self):
         self.train_landmarks = np.zeros((len(self.train_images), self.agents, 3))
