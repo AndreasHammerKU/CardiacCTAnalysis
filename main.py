@@ -5,8 +5,9 @@ from bin.DataLoader import DataLoader
 from bin.Trainer import Trainer
 import numpy as np
 import constants as c
+import os
 
-def train_model(config : ExperimentConfig, model_name, logger : MedicalLogger, dataLoader : DataLoader):
+def train_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : DataLoader):
     logger.create_dataframes()
     # Train split
     train_env = MedicalImageEnvironment(logger=logger,
@@ -53,24 +54,24 @@ def train_model(config : ExperimentConfig, model_name, logger : MedicalLogger, d
     #train_env.visualize_current_state()
     #eval_env.visualize_current_state()
 
-def test_model(config : ExperimentConfig, model_name, logger : MedicalLogger, dataLoader : DataLoader, external=False):
+def test_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : DataLoader, external=False):
     logger.create_dataframes()
     # Evaluation split
     test_env = MedicalImageEnvironment(logger=logger,
                                        task="eval",
                                        dataLoader=dataLoader,
-                                       image_list=dataLoader.test_external if external else dataLoader.test,
+                                       image_list=dataLoader.test_external if external else dataLoader.test[1:],
                                        n_sample_points=config.n_sample_points,
                                        agents=config.agents,
                                        train_images=dataLoader.train)
     
     trainer = Trainer(test_environment=test_env,
-                     task="train",
+                     task="test",
                      logger=logger,
                      dataLoader=dataLoader,
                      action_dim=test_env.n_actions,
                      attention=config.attention,
-                     model_name=model_name,
+                     model_name=f"{config.rl_framework}-{config.model_type}-{config.experiment.name}",
                      model_type=config.model_type,
                      max_steps=config.max_steps,
                      episodes=config.episodes,
@@ -86,7 +87,7 @@ def test_model(config : ExperimentConfig, model_name, logger : MedicalLogger, da
                      gamma=config.gamma,
                      tau=config.tau)
     trainer.test()
-    logger.save_to_hdf5(config_obj=config)
+    logger.save_to_hdf5(config_obj=config, directory="logs")
     test_env.visualize_current_state()
 
 def debug_model(config : ExperimentConfig, model_name, logger : MedicalLogger, dataLoader : DataLoader):
@@ -139,7 +140,7 @@ def debug_model(config : ExperimentConfig, model_name, logger : MedicalLogger, d
     for i in range(len(dataLoader.val)):
         eval_env.get_next_image()
         state = eval_env.reset()
-        avg_error_mm = eval_env.get_curve_error(t_values=np.linspace(0,1, 100))
+        avg_error_mm = eval_env.get_curve_error(t_values=np.linspace(0, 1, 100))
         print(avg_error_mm.mean())
         #eval_env.visualize_current_state()
     
@@ -149,21 +150,26 @@ def main():
 
     logger = setup_logger(args.debug)
     
-    dataLoader = DataLoader(c.DATASET_FOLDER, logger=logger, seed=1)
+    dataLoader = DataLoader(c.DATASET_FOLDER, model_dir=os.path.join(c.LOGS_FOLDER, c.MODEL_FOLDER), logger=logger, seed=1)
+    dataLoader.test_external.remove('HOM_M53_H183_W86_YA')
+    dataLoader.test_external.remove('HOM_M56_H179_W75_YA')
+    dataLoader.test_external.remove('HOM_M59_H184_W97_YA')
+    dataLoader.test_external.remove('HOM_M62_H178_W88_YA')
+    dataLoader.test_external.remove('HOM_M70_H183_W108_YA')
     
     config = load_config_from_yaml(args.config)
 
     if args.task == "train":
-        train_model(config=config, model_name=args.model, dataLoader=dataLoader, logger=logger)
+        train_model(config=config, dataLoader=dataLoader, logger=logger)
 
     if args.task == "test":
-        test_model(config=config, model_name=args.model, dataLoader=dataLoader, logger=logger)
+        test_model(config=config, dataLoader=dataLoader, logger=logger)
 
     if args.task == "test_external":
-        test_model(config=config, model_name=args.model, dataLoader=dataLoader, logger=logger, external=True)
+        test_model(config=config, dataLoader=dataLoader, logger=logger, external=True)
 
     if args.task == "debug":
-        debug_model(config=config, model_name=args.model, dataLoader=dataLoader, logger=logger)
+        debug_model(config=config, dataLoader=dataLoader, logger=logger)
 
 if __name__ == "__main__":
     main()

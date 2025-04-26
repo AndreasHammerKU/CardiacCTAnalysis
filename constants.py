@@ -10,6 +10,8 @@ DATASET_FOLDER = os.path.join(os.path.expanduser('~'), 'Desktop', NEW_DATA)
 
 LOGS_FOLDER = os.path.join(os.path.expanduser('~'), 'Desktop', 'logs')
 
+MODEL_FOLDER = 'models'
+
 DQN_LOGS = 'DQN'
 
 DDQN_LOGS = 'DDQN'

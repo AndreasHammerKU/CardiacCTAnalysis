@@ -10,7 +10,7 @@ decay: 150
 agents: 6
 tau: 0.01
 max_steps: 500
-evaluation_steps: 2
+evaluation_steps: 10
 episodes: 6
 image_interval: 2
 evaluation_interval: 10

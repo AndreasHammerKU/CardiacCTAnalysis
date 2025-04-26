@@ -235,11 +235,11 @@ class MedicalImageEnvironment(gym.Env):
         # Show plot
         plt.show()
 
-    def get_curve_error(self, t_values):
+    def get_curve_error(self, t_values, points):
         p0_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._p0])
         ground_truth_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._ground_truth])
         p2_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._p2])
-        location_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._location])
+        location_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in points])
 
         error = np.zeros(self.agents, dtype=np.float32)
         for i in range(self.agents):
