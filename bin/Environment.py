@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 from bin.DataLoader import DataLoader
 from pycpd import AffineRegistration
 import torch
+import tqdm
 
 class MedicalImageEnvironment(gym.Env):
 
@@ -60,8 +61,7 @@ class MedicalImageEnvironment(gym.Env):
         self.train_landmarks = np.zeros((len(self.train_images), self.agents, 3))
         self.train_ground_truth = np.zeros((len(self.train_images), self.agents, 3))
 
-        for i in range(len(self.train_images)):
-            print(f"Loading for image {i} out of {len(self.train_images)}")
+        for i in tqdm(range(len(self.train_images))):
             _, _, voxel_landmarks = self.dataLoader.load_data(image_name=self.train_images[i], trim_image=self.trim_image)
 
             geometry = LeafletGeometry(voxel_landmarks)
@@ -89,9 +89,7 @@ class MedicalImageEnvironment(gym.Env):
         self._p0, _ground_truth, self._p2 = zip(*self.geometry.Control_points)
         self._ground_truth = np.array(_ground_truth, dtype=np.int16)
 
-        if self.task != "train":
-            # Infer starting point
-            self.inferred_gt = self._get_test_starting_point(np.array(self._p0), self.train_landmarks, self.train_ground_truth)
+        self.inferred_gt = self._get_test_starting_point(np.array(self._p0), self.train_landmarks, self.train_ground_truth)
         
         self.midpoint = [(self._p0[i] + self._p2[i]) // 2 for i in range(self.agents)]
 
@@ -138,11 +136,7 @@ class MedicalImageEnvironment(gym.Env):
 
     def _get_next_episode(self):
         # If in eval mode infer starting points
-        if self.task != "train":
-            self._location = np.array(self.inferred_gt, dtype=np.int32)
-        else:
-            self._location = np.array([(self.midpoint[i][0], self.midpoint[i][1], self.midpoint[i][2]) for i in range(self.agents)], dtype=np.int32)
-            
+        self._location = np.array(self.inferred_gt, dtype=np.int32)
         self.state = self._update_state()
 
     def _update_state(self):
