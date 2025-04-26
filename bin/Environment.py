@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 from bin.DataLoader import DataLoader
 from pycpd import AffineRegistration
 import torch
-import tqdm
+from tqdm import tqdm
 
 class MedicalImageEnvironment(gym.Env):
 
