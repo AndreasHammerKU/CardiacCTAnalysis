@@ -10,8 +10,10 @@ from scipy.special import comb
 import plotly.graph_objects as go
 from bin.DataLoader import DataLoader
 from pycpd import AffineRegistration
+import constants as c
 import torch
 from tqdm import tqdm
+import os
 
 class MedicalImageEnvironment(gym.Env):
 
@@ -53,9 +55,13 @@ class MedicalImageEnvironment(gym.Env):
             self.current_image = 0
         
         if task != "train":
-            assert train_images is not None
-            self.train_images = train_images
-            self._load_train_landmarks()
+            if os.path.exists(c.REGISTRATION_LANDMARKS) and os.path.exists(c.REGISTRATION_GROUND_TRUTH):
+                self.train_landmarks = np.load(c.REGISTRATION_LANDMARKS)
+                self.train_ground_truth = np.load(c.REGISTRATION_GROUND_TRUTH)
+            else:
+                assert train_images is not None
+                self.train_images = train_images
+                self._load_train_landmarks()
     
     def _load_train_landmarks(self):
         self.train_landmarks = np.zeros((len(self.train_images), self.agents, 3))
@@ -71,6 +77,8 @@ class MedicalImageEnvironment(gym.Env):
             self.train_landmarks[i] = np.array(p0)
             self.train_ground_truth[i] = np.array(ground_truthes)
 
+        np.save(c.REGISTRATION_LANDMARKS, self.train_landmarks)
+        np.save(c.REGISTRATION_GROUND_TRUTH, self.train_ground_truth)
 
     def get_next_image(self):
         if self.task == "train":

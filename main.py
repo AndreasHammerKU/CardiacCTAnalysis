@@ -3,6 +3,7 @@ from utils.parser import ExperimentConfig, load_config_from_yaml, parse_args
 from bin.Environment import MedicalImageEnvironment
 from bin.DataLoader import DataLoader
 from bin.Trainer import Trainer
+import numpy as np
 import constants as c
 
 def train_model(config : ExperimentConfig, model_name, logger : MedicalLogger, dataLoader : DataLoader):
@@ -135,10 +136,13 @@ def debug_model(config : ExperimentConfig, model_name, logger : MedicalLogger, d
     train_env.get_next_image()
     state = train_env.reset()
     #train_env.visualize_current_state()
-
-    eval_env.get_next_image()
-    state = eval_env.reset()
-    eval_env.visualize_current_state()
+    for i in range(len(dataLoader.val)):
+        eval_env.get_next_image()
+        state = eval_env.reset()
+        avg_error_mm = eval_env.get_curve_error(t_values=np.linspace(0,1, 100))
+        print(avg_error_mm.mean())
+        #eval_env.visualize_current_state()
+    
 
 def main():
     args = parse_args()

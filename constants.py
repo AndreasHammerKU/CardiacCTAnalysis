@@ -34,6 +34,10 @@ PATHOLOGICAL_DATA = 'Pathology'
 
 LANDMARKS_MASK_FOLDER = 'landmark_masks'
 
+REGISTRATION_LANDMARKS = 'train_landmarks.npy'
+
+REGISTRATION_GROUND_TRUTH = 'train_ground_truths.npy'
+
 ANCHOR_DATAPOINTS = ['R', 'L', 'N', 'RLC', 'RNC', 'LNC']
 
 LABELLED_DATAPOINTS = ['RCI', 'LCI', 'NCI']
