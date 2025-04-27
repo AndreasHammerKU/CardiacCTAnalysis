@@ -1,6 +1,6 @@
 model_type: Network3D
 attention: false
-experiment: WORK_ALONE
+experiment: SHARE_PAIRWISE
 rl_framework: DDQN
 lr: 0.001
 gamma: 0.95
@@ -9,8 +9,8 @@ min_epsilon: 0.05
 decay: 150
 agents: 6
 tau: 0.01
-max_steps: 500
-evaluation_steps: 10
+max_steps: 10
+evaluation_steps: 15
 episodes: 6
 image_interval: 2
 evaluation_interval: 10

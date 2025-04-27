@@ -25,13 +25,15 @@ class MedicalImageEnvironment(gym.Env):
                        image_list=None, 
                        logger=None,
                        train_images=None,
-                       trim_image=False):
+                       trim_image=False,
+                       add_noise=False):
 
         super(MedicalImageEnvironment, self).__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.logger = logger
         self.dataLoader = dataLoader
         self.image_list = image_list
+        self.add_noise = add_noise
 
         self.agents = agents
         self.task = task
@@ -103,6 +105,14 @@ class MedicalImageEnvironment(gym.Env):
         self.midpoint = [(self._p0[i] + self._p2[i]) // 2 for i in range(self.agents)]
 
         self.distance_to_middle = np.linalg.norm(self.midpoint - self._ground_truth, axis=1)
+
+        if self.task == "train" and self.add_noise:
+            self._p0, self._ground_truth, self._p2 = add_noise_to_bezier_points(
+                np.array(self._p0), np.array(self._ground_truth), np.array(self._p2),
+                endpoint_std=0.2,
+                control_std=0.4
+            )
+
 
     def _get_test_starting_point(self, test_landmarks, train_landmarks, train_ground_truths):
         """
@@ -313,3 +323,30 @@ def plotting_bezier_curve(p0, p1, p2, t):
     curve = np.outer((1 - t) ** 2, p0) + np.outer(2 * (1 - t) * t, p1) + np.outer(t ** 2, p2)
     return curve  # Convert to integer indices for accessing grid values
 
+def add_noise_to_bezier_points(p0, p1, p2, endpoint_std=0.2, control_std=0.4):
+    """
+    Add Gaussian noise to Bezier curve endpoints and control points, rounding to integers.
+
+    Args:
+        p0 (np.ndarray): (6, 3) array of first endpoints
+        p1 (np.ndarray): (6, 3) array of control points (ground truth)
+        p2 (np.ndarray): (6, 3) array of second endpoints
+        endpoint_std (float): standard deviation for noise on endpoints
+        control_std (float): standard deviation for noise on control points
+
+    Returns:
+        p0_noisy, p1_noisy, p2_noisy: np.ndarrays (each (6, 3)) of dtype int16
+    """
+    assert p0.shape == (6, 3) and p1.shape == (6, 3) and p2.shape == (6, 3), "Inputs must be (6,3) arrays"
+
+    # Add Gaussian noise
+    p0_noisy = p0 + np.random.normal(0, endpoint_std, size=p0.shape)
+    p2_noisy = p2 + np.random.normal(0, endpoint_std, size=p2.shape)
+    p1_noisy = p1 + np.random.normal(0, control_std, size=p1.shape)
+
+    # Round and cast to int
+    p0_noisy = np.round(p0_noisy).astype(np.int16)
+    p2_noisy = np.round(p2_noisy).astype(np.int16)
+    p1_noisy = np.round(p1_noisy).astype(np.int16)
+
+    return p0_noisy, p1_noisy, p2_noisy

@@ -181,8 +181,8 @@ class Trainer:
                 closest_point = np.minimum(closest_point, current_distances)
                 furthest_point = np.maximum(furthest_point, current_distances)
 
-            avg_error_mm = self.env.get_curve_error(t_values=np.linspace(0,1, 100))
-            worst_error_mm = self.env.get_curve_error(t_values=np.array([0.5]))
+            avg_error_mm = self.env.get_curve_error(t_values=np.linspace(0,1, 100), points=self.env._location)
+            worst_error_mm = self.env.get_curve_error(t_values=np.array([0.5]), points=self.env._location)
             end_avg_dist = np.mean(current_distances)
             avg_closest_point = np.mean(closest_point)
             avg_furthest_point = np.mean(furthest_point)
@@ -201,7 +201,7 @@ class Trainer:
         else:
             self.rl_model.save_model(dataLoader=self.dataLoader, model_name=f"{self.rl_framework}-{self.model_type}-{self.experiment.name}")
 
-    def _evaluate(self, environment):
+    def _evaluate(self, environment : MedicalImageEnvironment):
         """
         Runs evaluation episodes using the trained policy network without exploration.
         """
@@ -274,6 +274,7 @@ class Trainer:
                 
                 evaluation_errors_avg.append(avg_error_mm)
                 evaluation_errors_worst.append(worst_error_mm)
+                environment.visualize_current_state()
                 #success_counts += found_truth.astype(int)  # Count successes per agent
         self.logger.info("===== Evaluation Summary =====")
         make_boxplot(evaluation_errors_avg)

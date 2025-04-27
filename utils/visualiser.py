@@ -236,7 +236,7 @@ def visualize_from_logs(logger, save_path=None, experiment=c.DQN_LOGS, viz_name=
     train_files = glob(os.path.join(c.LOGS_FOLDER, experiment, c.TRAIN_LOGS, '*'))
     test_files = glob(os.path.join(c.LOGS_FOLDER, experiment, c.TEST_LOGS, '*'))
     test_external_files = glob(os.path.join(c.LOGS_FOLDER, experiment, c.TEST_EXTERNAL_LOGS, '*'))
-    print(train_files)
+
     # Train data
     train_dfs = []
     val_dfs = []
@@ -246,7 +246,7 @@ def visualize_from_logs(logger, save_path=None, experiment=c.DQN_LOGS, viz_name=
     for file in train_files:
         if os.path.isfile(file):
             train_df, val_df, config, run_id = logger.load_from_hdf5(file)
-            print(train_df.head(5))
+
             train_dfs.append(train_df)
             val_dfs.append(val_df)
             configs.append(config)
@@ -316,6 +316,24 @@ def plot_validation_loss(val_dfs, configs, run_ids, save_path=None, plot_name=No
 def boxplot_test_errors(val_dfs, configs, run_ids, title_suffix="", save_path=None, plot_name=None):
     runs = []
 
+     # --- New: Compute baseline naive error ---
+    naive_errors = []
+    for val_df in val_dfs:
+        if 'naive_error' in val_df.columns:
+            val_df = val_df.copy()
+            # Collect all naive errors (flatten if needed)
+            val_df['mean_naive_error'] = val_df['naive_distance_mm'].apply(
+                lambda x: np.mean(x) if isinstance(x, (list, np.ndarray)) else np.nan
+            )
+            naive_errors.append(val_df['mean_naive_error'].dropna().values)
+
+    if naive_errors:
+        # Stack all and compute global mean
+        naive_errors_all = np.concatenate(naive_errors)
+        baseline_naive_error = np.mean(naive_errors_all)
+    else:
+        baseline_naive_error = None
+    
     for val_df, config, run_id in zip(val_dfs, configs, run_ids):
         if 'avg_err_in_mm' in val_df.columns:
             val_df = val_df.copy()
@@ -347,6 +365,11 @@ def boxplot_test_errors(val_dfs, configs, run_ids, title_suffix="", save_path=No
     # Plot boxplot
     plt.figure(figsize=(12, 6))
     plt.boxplot(data, labels=labels, showfliers=True)
+
+    # Add baseline line if available
+    if baseline_naive_error is not None:
+        plt.axhline(baseline_naive_error, color='red', linestyle='--', label=f'Baseline Naive Error: {baseline_naive_error:.2f} mm')
+        plt.legend()
 
     plt.ylim((0,12))
     plt.yticks(np.arange(0,13))
