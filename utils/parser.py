@@ -32,7 +32,8 @@ class ExperimentConfig:
                        evaluation_steps=30,
                        episodes=50,
                        image_interval=1,
-                       evaluation_interval=10):
+                       evaluation_interval=10,
+                       add_noise=False):
         self.model_type=model_type
         self.attention=attention
         self.experiment=experiment
@@ -50,6 +51,7 @@ class ExperimentConfig:
         self.image_interval=image_interval
         self.evaluation_interval=evaluation_interval
         self.n_sample_points=n_sample_points
+        self.add_noise=add_noise
 
     def to_dict(self):
         return {
@@ -69,7 +71,8 @@ class ExperimentConfig:
             'episodes': self.episodes,
             'image_interval': self.image_interval,
             'evaluation_interval': self.evaluation_interval,
-            'n_sample_points': self.n_sample_points
+            'n_sample_points': self.n_sample_points,
+            'add_noise': self.add_noise
         }
 
 def load_config_from_yaml(path: str) -> ExperimentConfig:

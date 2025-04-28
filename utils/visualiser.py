@@ -319,13 +319,11 @@ def boxplot_test_errors(val_dfs, configs, run_ids, title_suffix="", save_path=No
      # --- New: Compute baseline naive error ---
     naive_errors = []
     for val_df in val_dfs:
-        if 'naive_error' in val_df.columns:
+        if 'naive_distance_mm' in val_df.columns:
             val_df = val_df.copy()
-            # Collect all naive errors (flatten if needed)
-            val_df['mean_naive_error'] = val_df['naive_distance_mm'].apply(
-                lambda x: np.mean(x) if isinstance(x, (list, np.ndarray)) else np.nan
-            )
-            naive_errors.append(val_df['mean_naive_error'].dropna().values)
+            
+            print(val_df['naive_distance_mm'].dropna().values)
+            naive_errors.append(val_df['naive_distance_mm'].dropna().values)
 
     if naive_errors:
         # Stack all and compute global mean

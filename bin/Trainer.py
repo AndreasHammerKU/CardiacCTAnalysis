@@ -261,7 +261,7 @@ class Trainer:
 
                 avg_error_mm = environment.get_curve_error(t_values=np.linspace(0, 1, 100), points=environment._location)
                 worst_error_mm = environment.get_curve_error(t_values=np.array([0.5]), points=environment._location)
-                naive_error_mm = environment.get_curve_error(t_values=np.linspace(0, 1, 100), points=environment._location)
+                naive_error_mm = environment.get_curve_error(t_values=np.linspace(0, 1, 100), points=environment.midpoint).mean()
                 end_avg_dist = np.mean(current_distances)
                 avg_closest_point = np.mean(closest_point)
                 avg_furthest_point = np.mean(furthest_point)
@@ -274,8 +274,7 @@ class Trainer:
                 
                 evaluation_errors_avg.append(avg_error_mm)
                 evaluation_errors_worst.append(worst_error_mm)
-                environment.visualize_current_state()
-                #success_counts += found_truth.astype(int)  # Count successes per agent
+
         self.logger.info("===== Evaluation Summary =====")
         make_boxplot(evaluation_errors_avg)
         make_boxplot(evaluation_errors_worst)

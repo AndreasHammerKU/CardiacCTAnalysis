@@ -16,7 +16,7 @@ def train_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : 
                                         image_list=dataLoader.train, 
                                         n_sample_points=config.n_sample_points,
                                         agents=config.agents,
-                                        add_noise=True)
+                                        add_noise=config.add_noise)
     
     # Evaluation split
     eval_env = MedicalImageEnvironment(logger=logger,
@@ -26,7 +26,7 @@ def train_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : 
                                        n_sample_points=config.n_sample_points,
                                        agents=config.agents,
                                        train_images=dataLoader.train,
-                                       add_noise=True)
+                                       add_noise=config.add_noise)
     
     trainer = Trainer(train_environment=train_env,
                      eval_environment=eval_env,
@@ -65,7 +65,8 @@ def test_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : D
                                        image_list=dataLoader.test_external if external else dataLoader.test[1:],
                                        n_sample_points=config.n_sample_points,
                                        agents=config.agents,
-                                       train_images=dataLoader.train)
+                                       train_images=dataLoader.train,
+                                       add_noise=config.add_noise)
     
     trainer = Trainer(test_environment=test_env,
                      task="test",
