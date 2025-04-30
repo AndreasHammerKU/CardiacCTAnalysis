@@ -226,6 +226,7 @@ class Trainer:
                     location_data = None
                     next_location_data = None
 
+                CPD_distance_mm = environment.get_curve_error(t_values=np.linspace(0, 1, 100), points=environment._location).mean()
                 closest_point = np.full(self.agents, float('inf'))
                 furthest_point = np.zeros(self.agents)
                 total_reward = 0
@@ -262,6 +263,7 @@ class Trainer:
                 avg_error_mm = environment.get_curve_error(t_values=np.linspace(0, 1, 100), points=environment._location)
                 worst_error_mm = environment.get_curve_error(t_values=np.array([0.5]), points=environment._location)
                 naive_error_mm = environment.get_curve_error(t_values=np.linspace(0, 1, 100), points=environment.midpoint).mean()
+                
                 end_avg_dist = np.mean(current_distances)
                 avg_closest_point = np.mean(closest_point)
                 avg_furthest_point = np.mean(furthest_point)
@@ -270,7 +272,7 @@ class Trainer:
                         f"Final Avg Distance {end_avg_dist:.2f} | Average error in mm {np.round(avg_error_mm,2)} | Worst Error in mm {np.round(worst_error_mm, 2)} "
                         f"Avg Closest Point = {avg_closest_point:.2f} | Avg Furthest Point = {avg_furthest_point:.2f}"
                 )
-                self.logger.insert_val_row(self.current_episode+1, episode+1, total_reward, end_avg_dist, avg_error_mm, worst_error_mm, avg_closest_point, avg_furthest_point, naive_error_mm)
+                self.logger.insert_val_row(self.current_episode+1, episode+1, total_reward, end_avg_dist, avg_error_mm, worst_error_mm, avg_closest_point, avg_furthest_point, naive_error_mm, CPD_distance_mm)
                 
                 evaluation_errors_avg.append(avg_error_mm)
                 evaluation_errors_worst.append(worst_error_mm)

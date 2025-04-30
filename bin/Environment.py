@@ -101,6 +101,7 @@ class MedicalImageEnvironment(gym.Env):
 
         if self.task != "train":
             self.inferred_gt = self._get_test_starting_point(np.array(self._p0), self.train_landmarks, self.train_ground_truth)
+            self.distance_to_inferred_get = np.linalg.norm(self.inferred_gt - self._ground_truth, axis=1)
         
         self.midpoint = [(self._p0[i] + self._p2[i]) // 2 for i in range(self.agents)]
 

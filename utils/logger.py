@@ -36,14 +36,14 @@ class MedicalLogger:
     def create_dataframes(self):
         self.debug("Creating new empty DataFrames.")
         self.train_df = pd.DataFrame(columns=["episode", "total_reward", "end_avg_dist", "avg_err_in_mm", "worst_err_in_mm", "avg_closest_point", "avg_furthest_point"])
-        self.val_df = pd.DataFrame(columns=["train_episode", "episode", "total_reward", "end_avg_dist", "avg_err_in_mm", "worst_err_in_mm", "avg_closest_point", "avg_furthest_point", "naive_distance_mm"])
+        self.val_df = pd.DataFrame(columns=["train_episode", "episode", "total_reward", "end_avg_dist", "avg_err_in_mm", "worst_err_in_mm", "avg_closest_point", "avg_furthest_point", "naive_distance_mm", "CPD_distance_mm"])
     def insert_train_row(self, episode, total_reward, end_avg_dist, avg_err_in_mm, worst_err_in_mm, avg_closest_point, avg_furthest_point):
         self.debug(f"Inserting row into train_df: episode={episode}")
         self.train_df.loc[len(self.train_df)] = [episode, total_reward, end_avg_dist, avg_err_in_mm, worst_err_in_mm, avg_closest_point, avg_furthest_point]
 
-    def insert_val_row(self, train_episode, episode, total_reward, end_avg_dist, avg_err_in_mm, worst_err_in_mm, avg_closest_point, avg_furthest_point, naive_distance_mm):
+    def insert_val_row(self, train_episode, episode, total_reward, end_avg_dist, avg_err_in_mm, worst_err_in_mm, avg_closest_point, avg_furthest_point, naive_distance_mm, CPD_distance_mm):
         self.debug(f"Inserting row into val_df: episode={episode}")
-        self.val_df.loc[len(self.val_df)] = [train_episode, episode, total_reward, end_avg_dist, avg_err_in_mm, worst_err_in_mm, avg_closest_point, avg_furthest_point, naive_distance_mm]
+        self.val_df.loc[len(self.val_df)] = [train_episode, episode, total_reward, end_avg_dist, avg_err_in_mm, worst_err_in_mm, avg_closest_point, avg_furthest_point, naive_distance_mm, CPD_distance_mm]
 
     def clear_dataframes(self):
         self.debug("Clearing existing DataFrames.")

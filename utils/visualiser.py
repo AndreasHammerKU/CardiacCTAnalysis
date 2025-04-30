@@ -305,6 +305,7 @@ def plot_validation_loss(val_dfs, configs, run_ids, save_path=None, plot_name=No
     plt.title("Validation Loss Across Runs (Mean of Avg Errors per Agent per Episode)")
     plt.xlabel("Train Episode")
     plt.ylabel("Mean Validation Error (mm)")
+    plt.ylim((2,4))
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
@@ -321,8 +322,6 @@ def boxplot_test_errors(val_dfs, configs, run_ids, title_suffix="", save_path=No
     for val_df in val_dfs:
         if 'naive_distance_mm' in val_df.columns:
             val_df = val_df.copy()
-            
-            print(val_df['naive_distance_mm'].dropna().values)
             naive_errors.append(val_df['naive_distance_mm'].dropna().values)
 
     if naive_errors:
@@ -331,6 +330,19 @@ def boxplot_test_errors(val_dfs, configs, run_ids, title_suffix="", save_path=No
         baseline_naive_error = np.mean(naive_errors_all)
     else:
         baseline_naive_error = None
+
+    CPD_errors = []
+    for val_df in val_dfs:
+        if 'CPD_distance_mm' in val_df.columns:
+            val_df = val_df.copy()
+            CPD_errors.append(val_df['CPD_distance_mm'].dropna().values)
+
+    if CPD_errors:
+        # Stack all and compute global mean
+        CPD_errors_all = np.concatenate(CPD_errors)
+        baseline_CPD_error = np.mean(CPD_errors_all)
+    else:
+        baseline_CPD_error = None
     
     for val_df, config, run_id in zip(val_dfs, configs, run_ids):
         if 'avg_err_in_mm' in val_df.columns:
@@ -367,8 +379,11 @@ def boxplot_test_errors(val_dfs, configs, run_ids, title_suffix="", save_path=No
     # Add baseline line if available
     if baseline_naive_error is not None:
         plt.axhline(baseline_naive_error, color='red', linestyle='--', label=f'Baseline Naive Error: {baseline_naive_error:.2f} mm')
-        plt.legend()
-
+        
+    if baseline_CPD_error is not None:
+        plt.axhline(baseline_CPD_error, color='blue', linestyle='--', label=f'Baseline Naive Error: {baseline_CPD_error:.2f} mm')
+    
+    plt.legend()
     plt.ylim((0,12))
     plt.yticks(np.arange(0,13))
     plt.xticks(rotation=45, ha='right')
