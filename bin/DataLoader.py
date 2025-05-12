@@ -80,7 +80,7 @@ class DataLoader():
         #self.logger.debug(f"Orientation {nib.orientations.aff2axcodes(affine)} | Image shape {nii_img.get_fdata().shape} | ")
         return nii_img.get_fdata(), affine
 
-    def load_data(self, image_name, trim_image=True):
+    def load_data(self, image_name, trim_image=False):
         self.logger.debug(f"Loading image {image_name}")
         # Load NIfTI file
         nifti_path = self.image_dict[image_name]
@@ -91,13 +91,8 @@ class DataLoader():
             landmark_data = json.load(file)
 
         landmarks =  _map_landmarks(landmark_data, function=_ras_to_lps)
-        inv_affine = np.linalg.inv(affine)
-        voxel_landmarks = _map_landmarks(landmarks, _world_to_voxel, inv_affine)
-        
-        if trim_image:
-            nifti_data, voxel_landmarks = self._crop_image(image=nifti_data, landmarks=voxel_landmarks)
 
-        return nifti_data, affine, voxel_landmarks
+        return nifti_data, affine, landmarks
     
     def save_distance_field(self, image_name : str, distance_field : np.ndarray):
         np.savez_compressed(os.path.join(self.distance_fields, f"d_{image_name}.npz"), distance=distance_field)
@@ -143,6 +138,12 @@ class DataLoader():
         landmarks = _map_landmarks(landmarks, _move_landmarks, offset)
         return crop, landmarks
 
+def world_to_voxel(landmarks, inv_affine):
+    return _map_landmarks(landmarks, _world_to_voxel, inv_affine)
+
+def voxel_to_world(landmarks, affine):
+    return _map_landmarks(landmarks, _voxel_to_world, affine)
+
 def _map_landmarks(dict: dict, function, *args, **kwargs):
     converted_dict = {}
     for key, value in dict.items():
@@ -157,6 +158,9 @@ def _ras_to_lps(point):
 
 def _world_to_voxel(point, inv_affine):
     return np.dot(inv_affine, np.append(point, 1))[:3].tolist()
+
+def _voxel_to_world(point, affine):
+    return np.dot(affine, np.append(point,1))[:3].tolist()
 
 def _move_landmarks(point, offset):
     return (np.array(point) - np.array(offset)).tolist()

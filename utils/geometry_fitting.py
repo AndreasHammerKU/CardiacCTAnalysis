@@ -2,11 +2,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import least_squares, minimize_scalar
 from sklearn.linear_model import LinearRegression
+from bin.DataLoader import _world_to_voxel, _voxel_to_world
 
 
 class LeafletGeometry():
-    def __init__(self, landmarks):
+    def __init__(self, landmarks, affine):
         self.landmarks = landmarks
+        self.affine = affine
         self.single_point_names = ['R', 'L', 'N', 'RLC', 'RNC', 'LNC']
 
         self.RCI_points = self.landmarks['RCI']
@@ -15,14 +17,32 @@ class LeafletGeometry():
 
         self.label_curves = [self.RCI_points, self.LCI_points, self.NCI_points]
 
+        self.GH_curves = []
+        for key in ['RGH', 'LGH', 'NGH']:
+            if key in self.landmarks:
+                self.GH_curves.append(self.landmarks[key])
+
+        self.seams = []
+        for key in ['BR - closed', 'RLS - closed', 'RNS - closed', 'LNS - closed']:
+            if key in self.landmarks:
+                self.seams.append(self.landmarks[key].append(self.landmarks[key][0]))
+
+    def get_voxel_control_points(self):
+        inv_affine = np.linalg.inv(self.affine)
+        p0, gt, p2 = zip(*self.Control_points)
+        p0_voxel = np.array([_world_to_voxel(p, inv_affine) for p in p0], dtype=np.int16)
+        gt_voxel = np.array([_world_to_voxel(p, inv_affine) for p in gt], dtype=np.int16)
+        p2_voxel = np.array([_world_to_voxel(p, inv_affine) for p in p2], dtype=np.int16)
+        return p0_voxel, gt_voxel, p2_voxel
+
     def calculate_bezier_curves(self, granularity=100):
         # Find control points
-        self.RCI_left, self.MSE_RCI_left, self.RCI_right, self.MSE_RCI_right = split_and_approximate_curve(self.landmarks['RCI'], np.array(self.landmarks['R']))
-        self.LCI_left, self.MSE_LCI_left, self.LCI_right, self.MSE_LCI_right = split_and_approximate_curve(self.landmarks['LCI'], np.array(self.landmarks['L']))
-        self.NCI_left, self.MSE_NCI_left, self.NCI_right, self.MSE_NCI_right = split_and_approximate_curve(self.landmarks['NCI'], np.array(self.landmarks['N']))
+        self.RCI_left, self.STATS_RCI_left, self.RCI_right, self.STATS_RCI_right = split_and_approximate_curve(self.landmarks['RCI'], np.array(self.landmarks['R']))
+        self.LCI_left, self.STATS_LCI_left, self.LCI_right, self.STATS_LCI_right = split_and_approximate_curve(self.landmarks['LCI'], np.array(self.landmarks['L']))
+        self.NCI_left, self.STATS_NCI_left, self.NCI_right, self.STATS_NCI_right = split_and_approximate_curve(self.landmarks['NCI'], np.array(self.landmarks['N']))
 
         self.Control_points = [self.RCI_left, self.RCI_right, self.LCI_left, self.LCI_right,  self.NCI_left, self.NCI_right]
-        self.MSE_list       = [self.MSE_RCI_left, self.MSE_RCI_right, self.MSE_LCI_left, self.MSE_LCI_right, self.MSE_NCI_left, self.MSE_NCI_right]
+        self.STATS_list       = [self.STATS_RCI_left, self.STATS_RCI_right, self.STATS_LCI_left, self.STATS_LCI_right, self.STATS_NCI_left, self.STATS_NCI_right]
         # Sample Bezier Curve
         self.Bezier_RCI_left  = sample_bezier_curve_3d(self.RCI_left, granularity=granularity)
         self.Bezier_RCI_right = sample_bezier_curve_3d(self.RCI_right, granularity=granularity)
@@ -33,7 +53,7 @@ class LeafletGeometry():
 
         self.Bezier_curves = [self.Bezier_RCI_left, self.Bezier_RCI_right, self.Bezier_LCI_left, self.Bezier_LCI_right, self.Bezier_NCI_left, self.Bezier_NCI_right]
 
-    def plot(self, plot_control_points = True, plot_label_points = True, plot_bezier_curves = True, plot_single_points = True):
+    def plot(self, plot_control_points = True, plot_label_points = True, plot_bezier_curves = True, plot_single_points = True, plot_geometric_heights = True, plot_seams = True):
 
         fig = plt.figure(figsize=(8,6))
         ax = fig.add_subplot(111, projection='3d')
@@ -44,34 +64,62 @@ class LeafletGeometry():
 
         if plot_label_points:
             for label_curve in self.label_curves:
-                for point in label_curve:
-                    ax.scatter(point[0], point[1], point[2], color='blue', marker='o')
-        
+                curve = np.array(label_curve)
+                ax.plot(curve[:,0], curve[:,1], curve[:,2], color='green', label='Coaptation Interfaces')
+
         if plot_bezier_curves:
             for bezier_curve in self.Bezier_curves:
-                ax.plot(bezier_curve[:,0], bezier_curve[:,1], bezier_curve[:,2], color='green')
+                ax.plot(bezier_curve[:,0], bezier_curve[:,1], bezier_curve[:,2], color='green', label='Coaptation Interfaces')
 
         if plot_single_points:
             for key in self.landmarks:
                 if key in self.single_point_names:
                     point = self.landmarks[key]
                     ax.scatter(point[0], point[1], point[2], color='red', marker='o')
-                    ax.text(point[0], point[1], point[2], f'{key}', color='black')
+                    ax.text(point[0], point[1], point[2], f'{key}', color='black', fontsize=28)
 
+        if plot_geometric_heights:
+            for point_curve in self.GH_curves:
+                curve = np.array(point_curve)
+                ax.plot(curve[:,0], curve[:,1], curve[:,2], color='red', label='Geometric Height')
+   
+        curve = np.array(self.landmarks['BR - closed'])
+        ax.plot(curve[:,0], curve[:,1], curve[:,2], color='black', label='Basal Ring')
+        #curve = np.array(self.landmarks['RLS - closed'])
+        #ax.plot(curve[:,0], curve[:,1], curve[:,2], color='purple')
+        #curve = np.array(self.landmarks['RNS - closed'])
+        #ax.plot(curve[:,0], curve[:,1], curve[:,2], color='purple')
+        #curve = np.array(self.landmarks['LNS - closed'])
+        #ax.plot(curve[:,0], curve[:,1], curve[:,2], color='purple')
+        
         # Labels
-        ax.set_xlabel("X Axis")
-        ax.set_ylabel("Y Axis")
-        ax.set_zlabel("Z Axis")
-        ax.set_title("3D Scatter Plot")
+        #ax.set_xlabel("X Axis")
+        #ax.set_ylabel("Y Axis")
+        #ax.set_zlabel("Z Axis")
+        ax.set_title("Aortic valve landmarks")
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_zticks([])
+
+        # Remove panes (background boxes)
+        ax.xaxis.pane.set_visible(False)
+        ax.yaxis.pane.set_visible(False)
+        ax.zaxis.pane.set_visible(False)
+
+        # Remove grid
+        ax.grid(False)
+
+        # Optionally remove axis lines too
+        ax.xaxis.line.set_color((0.0, 0.0, 0.0, 0.0))
+        ax.yaxis.line.set_color((0.0, 0.0, 0.0, 0.0))
+        ax.zaxis.line.set_color((0.0, 0.0, 0.0, 0.0))
+
+        handles, labels = ax.get_legend_handles_labels()
+        unique = dict(zip(labels, handles))
+        ax.legend(unique.values(), unique.keys())
 
         # Show plot
         plt.show()
-
-    def get_control_points(self):
-        return self.Control_points
-    
-    def get_average_mse(self):
-        return np.sum(np.array(self.MSE_list)) / len(self.MSE_list)
 
 
 # Helper Functions
@@ -89,14 +137,14 @@ def split_and_approximate_curve(curve_points, middle_point):
     # Left Curve
     left_curve = curve[:closest_index]
     left_curve = np.vstack([left_curve, middle_point])
-    left_control_points, mse_left = fit_quadratic_bezier(left_curve)
+    left_control_points, stats_left = fit_quadratic_bezier(left_curve)
 
     # Right Curve
     right_curve = curve[closest_index:]
     right_curve = np.vstack([middle_point, right_curve])
-    right_control_points, mse_right = fit_quadratic_bezier(right_curve)
+    right_control_points, stats_right = fit_quadratic_bezier(right_curve)
 
-    return right_control_points, mse_left, left_control_points, mse_right
+    return right_control_points, stats_left, left_control_points, stats_right
 
 def bezier_quadratic(P0, P1, P2, t):
     return (1 - t) ** 2 * P0 + 2 * (1 - t) * t * P1 + t ** 2 * P2
@@ -112,8 +160,9 @@ def closest_t_on_bezier(bezier_func, control_points, Q):
     res = minimize_scalar(distance_to_curve, bounds=(0, 1), method='bounded')
     return res.x
 
-def fit_quadratic_bezier(points, lambda_reg =0.0001):
+def fit_quadratic_bezier(points, lambda_reg=0.0001):
     P0, P2 = points[0], points[-1]
+
     def loss(P1_flat):
         P1 = np.array(P1_flat)
         control_points = (P0, P1, P2)
@@ -123,11 +172,39 @@ def fit_quadratic_bezier(points, lambda_reg =0.0001):
         midpoint = (P0 + P2) / 2
         reg_loss = lambda_reg * np.linalg.norm(P1 - midpoint) ** 2
         return np.append(mse_loss, reg_loss)
+
     P1_init = (P0 + P2) / 2
     res = least_squares(loss, P1_init)
+
+    # Fitted control points
     fitted_control_points = np.array([P0, res.x, P2])
+    # MSE
     mse = res.cost / len(points)
-    return fitted_control_points, mse
+    # RMSE
+    rmse = np.sqrt(mse)
+
+    # Residuals and R-squared
+    bezier_points = np.array([bezier_quadratic(*fitted_control_points, t) for t in np.linspace(0, 1, len(points))])
+    residuals = (bezier_points - points).flatten()
+    ss_res = np.sum((residuals) ** 2)
+    ss_tot = np.sum((points - np.mean(points, axis=0)) ** 2)
+    r_squared = 1 - (ss_res / ss_tot)
+
+    # Mean and Standard Deviation of Residuals
+    mean_residual = np.mean(residuals)
+    std_residual = np.std(residuals)
+
+    # Max Error
+    max_error = np.max(np.abs(residuals))
+
+    return fitted_control_points, {
+        'mse': mse,
+        'rmse': rmse,
+        'r_squared': r_squared,
+        'mean_residual': mean_residual,
+        'std_residual': std_residual,
+        'max_error': max_error
+    }
 
 def cartesian_to_spherical(x, y, z):
     """Convert Cartesian coordinates (x, y, z) to spherical coordinates (r, θ, φ)."""

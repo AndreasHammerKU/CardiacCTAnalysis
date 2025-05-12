@@ -1,19 +1,16 @@
-from gym import spaces
 import gym
 import numpy as np
-from collections import (Counter, defaultdict, deque, namedtuple)
 import random
 from utils.geometry_fitting import LeafletGeometry
 import matplotlib.pyplot as plt
 from scipy.spatial import KDTree
-from scipy.special import comb
-import plotly.graph_objects as go
-from bin.DataLoader import DataLoader
+from bin.DataLoader import DataLoader, world_to_voxel, voxel_to_world
 from pycpd import AffineRegistration
 import constants as c
 import torch
 from tqdm import tqdm
 import os
+import pandas as pd
 
 class MedicalImageEnvironment(gym.Env):
 
@@ -34,7 +31,8 @@ class MedicalImageEnvironment(gym.Env):
         self.dataLoader = dataLoader
         self.image_list = image_list
         self.add_noise = add_noise
-
+        
+        self.all_stats = []
         self.agents = agents
         self.task = task
         self.trim_image = trim_image
@@ -70,14 +68,14 @@ class MedicalImageEnvironment(gym.Env):
         self.train_ground_truth = np.zeros((len(self.train_images), self.agents, 3))
 
         for i in tqdm(range(len(self.train_images))):
-            _, _, voxel_landmarks = self.dataLoader.load_data(image_name=self.train_images[i], trim_image=self.trim_image)
+            _, _, landmarks = self.dataLoader.load_data(image_name=self.train_images[i], trim_image=self.trim_image)
 
-            geometry = LeafletGeometry(voxel_landmarks)
+            geometry = LeafletGeometry(landmarks)
             geometry.calculate_bezier_curves()
 
-            p0, ground_truthes, _ = zip(*geometry.Control_points)
-            self.train_landmarks[i] = np.array(p0)
-            self.train_ground_truth[i] = np.array(ground_truthes)
+            p0, ground_truthes, _ = geometry.get_voxel_control_points()
+            self.train_landmarks[i] = p0
+            self.train_ground_truth[i] = ground_truthes
 
         np.save(c.REGISTRATION_LANDMARKS, self.train_landmarks)
         np.save(c.REGISTRATION_GROUND_TRUTH, self.train_ground_truth)
@@ -91,13 +89,16 @@ class MedicalImageEnvironment(gym.Env):
             if self.current_image >= len(self.image_list):
                 self.current_image = 0
         
-        self.image, self.affine, voxel_landmarks = self.dataLoader.load_data(image_name=image_name, trim_image=self.trim_image)
-        
-        self.geometry = LeafletGeometry(voxel_landmarks)
-        self.geometry.calculate_bezier_curves()
+        self.image, self.affine, landmarks = self.dataLoader.load_data(image_name=image_name, trim_image=self.trim_image)
+    
 
-        self._p0, _ground_truth, self._p2 = zip(*self.geometry.Control_points)
-        self._ground_truth = np.array(_ground_truth, dtype=np.int16)
+        self.geometry = LeafletGeometry(landmarks, self.affine)
+        self.geometry.calculate_bezier_curves()
+        
+        self.all_stats += self.geometry.STATS_list
+
+        #self.geometry.plot(plot_bezier_curves=False, plot_control_points=False, plot_label_points=True)
+        self._p0, self._ground_truth, self._p2 = self.geometry.get_voxel_control_points()
 
         if self.task != "train":
             self.inferred_gt = self._get_test_starting_point(np.array(self._p0), self.train_landmarks, self.train_ground_truth)
@@ -314,7 +315,24 @@ class MedicalImageEnvironment(gym.Env):
         max_z = min(self.image.shape[2], max_z + padding)
 
         return np.array([min_x, max_x, min_y, max_y, min_z, max_z], dtype=np.int16)
+    
+    def compile_curve_fitting_statistics(self):
+        df = pd.DataFrame(self.all_stats)
 
+        # Calculate summary statistics
+        summary_stats = {
+            'Metric': ['MSE', 'RMSE', 'R-squared', 'Mean Residual', 'Std Residual', 'Max Error'],
+            'Mean': df.mean().values,
+            'Median': df.median().values,
+            'Std Dev': df.std().values,
+            'Min': df.min().values,
+            'Max': df.max().values
+        }
+
+        # Create a DataFrame for the summary
+        summary_df = pd.DataFrame(summary_stats)
+
+        return summary_df
 
 def bezier_curve(p0, p1, p2, t):
     curve = np.outer((1 - t) ** 2, p0) + np.outer(2 * (1 - t) * t, p1) + np.outer(t ** 2, p2)

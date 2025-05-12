@@ -51,8 +51,10 @@ def train_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : 
                      gamma=config.gamma,
                      tau=config.tau)
     
-    trainer.train()
-    logger.save_to_hdf5(config_obj=config, directory="logs")
+    #trainer.train()
+    #logger.save_to_hdf5(config_obj=config, directory="logs")
+    train_env.get_next_image()
+    train_env.reset()
     #train_env.visualize_current_state()
     #eval_env.visualize_current_state()
 
@@ -93,7 +95,7 @@ def test_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : D
     logger.save_to_hdf5(config_obj=config, directory="logs")
     test_env.visualize_current_state()
 
-def debug_model(config : ExperimentConfig, model_name, logger : MedicalLogger, dataLoader : DataLoader):
+def debug_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : DataLoader):
     logger.create_dataframes()
 
     train_env = MedicalImageEnvironment(logger=logger,
@@ -104,16 +106,16 @@ def debug_model(config : ExperimentConfig, model_name, logger : MedicalLogger, d
                                         agents=config.agents,
                                         trim_image=False)
     
+    full_image_set = dataLoader.train + dataLoader.val + dataLoader.test[1:]
     # Evaluation split
     eval_env = MedicalImageEnvironment(logger=logger,
                                        task="eval",
                                        dataLoader=dataLoader,
-                                       image_list=dataLoader.val,
+                                       image_list=full_image_set,
                                        n_sample_points=config.n_sample_points,
                                        agents=config.agents,
                                        train_images=dataLoader.train, 
                                        trim_image=False)
-    
     trainer = Trainer(train_environment=train_env,
                      eval_environment=eval_env,
                      task="train",
@@ -121,7 +123,7 @@ def debug_model(config : ExperimentConfig, model_name, logger : MedicalLogger, d
                      dataLoader=dataLoader,
                      action_dim=train_env.n_actions,
                      attention=config.attention,
-                     model_name=model_name,
+                     model_name=f"{config.rl_framework}-{config.model_type}-{config.experiment.name}",
                      model_type=config.model_type,
                      max_steps=config.max_steps,
                      episodes=config.episodes,
@@ -140,12 +142,15 @@ def debug_model(config : ExperimentConfig, model_name, logger : MedicalLogger, d
     train_env.get_next_image()
     state = train_env.reset()
     #train_env.visualize_current_state()
-    for i in range(len(dataLoader.val)):
+    for i in range(len(full_image_set)):
+        print("Image: ", i+1)
         eval_env.get_next_image()
         state = eval_env.reset()
-        avg_error_mm = eval_env.get_curve_error(t_values=np.linspace(0, 1, 100))
-        print(avg_error_mm.mean())
-        #eval_env.visualize_current_state()
+        for stat in eval_env.geometry.STATS_list:
+            if stat['max_error'] > 2.909751 + 3*1.663999:
+                eval_env.geometry.plot(plot_geometric_heights=False, plot_seams=False)
+    stats = eval_env.compile_curve_fitting_statistics()
+    print(stats)
     
 
 def main():

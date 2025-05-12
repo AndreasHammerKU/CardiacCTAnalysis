@@ -211,13 +211,13 @@ class CommNet(nn.Module):
         self.encoder = FeatureEncoder(in_channels=n_sample_points, n_features=n_features)
 
         self.fc1 = nn.ModuleList(
-            [nn.Linear(in_features=(n_features + (32 * (self.experiment != Experiment.WORK_ALONE))) * 2, out_features=128) for _ in range(self.agents)])
+            [nn.Linear(in_features=n_features * 2, out_features=128) for _ in range(self.agents)])
         self.prelu4 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         
         # Modify fc2 to accept location input
         self.fc2 = nn.ModuleList(
-            [nn.Linear(in_features=128 * 2, out_features=64) for _ in range(self.agents)])
+            [nn.Linear(in_features=(128 + (32 * (self.experiment != Experiment.WORK_ALONE))) * 2, out_features=64) for _ in range(self.agents)])
         self.prelu5 = nn.ModuleList(
             [nn.PReLU() for _ in range(self.agents)])
         self.fc3 = nn.ModuleList(
@@ -258,8 +258,7 @@ class CommNet(nn.Module):
         for i in range(self.agents):
             x = state[:, i] if batched else state[i].unsqueeze(0)
             x = self.encoder(x)
-            if self.experiment != Experiment.WORK_ALONE:
-                x = torch.cat([x, location_data], dim=-1)
+
             input2.append(x)
         input2 = torch.stack(input2, dim=1)
         # Communication layers
@@ -274,7 +273,10 @@ class CommNet(nn.Module):
         for i in range(self.agents):
             x = input2[:, i]
             x = self.fc1[i](torch.cat((x, comm[i]), axis=-1))
-            input3.append(self.prelu4[i](x))
+            x = self.prelu4[i](x)
+            if self.experiment != Experiment.WORK_ALONE:
+                x = torch.cat([x, location_data], dim=-1)
+            input3.append(x)
         input3 = torch.stack(input3, dim=1)
 
         if self.attention:

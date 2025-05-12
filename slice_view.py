@@ -7,7 +7,7 @@ def main():
     logger = setup_logger(debug=True)
     dataLoader = DataLoader(c.DATASET_FOLDER, logger=logger)
 
-    viz.create_slice_app(image_name='n1', dataLoader=dataLoader)
+    viz.create_slice_app(image_name='n2', dataLoader=dataLoader)
 
 if __name__ == "__main__":
     main()

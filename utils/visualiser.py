@@ -10,8 +10,9 @@ from glob import glob
 import constants as c
 import os
 import matplotlib.pyplot as plt
+from utils.geometry_fitting import split_and_approximate_curve, sample_bezier_curve_3d
 
-def _create_slice_viewer(nifti_data, landmark_data):
+def _create_slice_viewer(nifti_data, landmark_data, bezier_curves):
     slices = nifti_data.shape[2]
     
     app = dash.Dash(__name__)
@@ -65,7 +66,16 @@ def _create_slice_viewer(nifti_data, landmark_data):
             z=slice_data,
             colorscale='gray'
         ))
-
+        if orientation == 'xz':
+            for curve in bezier_curves:
+                y_values = [point[1] for point in curve]
+                unique_y = set(y_values)
+                print(unique_y)
+                if len(unique_y) == 1 and list(unique_y)[0] == slice_idx:
+                    x_values = [point[0] for point in curve]
+                    z_values = [point[2] for point in curve]
+                    fig.add_trace(go.Scatter(x=x_values, y=z_values, mode='lines', line=dict(color='cyan'), name='Curve'))
+            
         # Add landmark points if they are in the current slice
         for label, value in landmark_data.items():
             if isinstance(value[0], (list, tuple, np.ndarray)):
@@ -79,10 +89,8 @@ def _create_slice_viewer(nifti_data, landmark_data):
 
                         fig.add_trace(go.Scatter(
                             x=[lx], y=[ly],
-                            mode='markers+text',
-                            marker=dict(color='blue', size=6),
-                            text=label,
-                            textposition='top center'
+                            mode='markers',
+                            marker=dict(color='blue', size=6)
                         ))
             else:
                 (x, y, z) = value
@@ -107,8 +115,8 @@ def _create_slice_viewer(nifti_data, landmark_data):
             yaxis_title='Y',
             xaxis=dict(scaleanchor="y"),  # This ensures that x and y axes have the same scale
             yaxis=dict(constrain='domain'),
-            height=800,  # Optional, you can adjust this as needed
-            width=800    # Optional, ensuring square aspect ratio
+            height=1200,  # Optional, you can adjust this as needed
+            width=1200    # Optional, ensuring square aspect ratio
         )
         
         return fig
@@ -191,14 +199,17 @@ def align_surface(image, voxels, point_filter):
 
 def create_slice_app(image_name, dataLoader):
     nifti_data, _, voxels = dataLoader.load_data(image_name=image_name, trim_image=False)
-
+    
     point_filter = ['R', 'RLC', 'RNC']
 
     rotated_image, rotated_voxels = align_surface(nifti_data, voxels, point_filter)
 
+    RCI_left, _, RCI_right, _ = split_and_approximate_curve(rotated_voxels['RCI'], middle_point=np.array(rotated_voxels['R']))
+    Bezier_RCI_left = sample_bezier_curve_3d(RCI_left, granularity=100)
+    Bezier_RCI_right = sample_bezier_curve_3d(RCI_right, granularity=100)
     # Project RCI onto plane.
-    y_level = rotated_voxels['R'][1]
-
+    y_level = round(rotated_voxels['R'][1])
+    print(y_level)
     curve = np.array(rotated_voxels['RCI'])
 
     X = curve[:,0]
@@ -211,7 +222,15 @@ def create_slice_app(image_name, dataLoader):
         new_points.append(new_point)
     rotated_voxels['RCI'] = new_points
 
-    app = _create_slice_viewer(rotated_image, rotated_voxels)
+    bezier_curves = []
+    for curve in [Bezier_RCI_left, Bezier_RCI_right]:
+        new_curve = []
+        for point in curve:
+            new_point = [point[0], y_level, point[2]]
+            new_curve.append(new_point)
+        bezier_curves.append(new_curve)
+
+    app = _create_slice_viewer(rotated_image, rotated_voxels, bezier_curves)
     app.run_server(debug=True)
 
 def view_curve(image_name, dataLoader):
