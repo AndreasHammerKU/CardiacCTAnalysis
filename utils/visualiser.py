@@ -10,9 +10,9 @@ from glob import glob
 import constants as c
 import os
 import matplotlib.pyplot as plt
-from utils.geometry_fitting import split_and_approximate_curve, sample_bezier_curve_3d
-
-def _create_slice_viewer(nifti_data, landmark_data, bezier_curves):
+from utils.geometry_fitting import split_and_approximate_curve, sample_bezier_curve_3d, LeafletGeometry
+from bin.DataLoader import _map_landmarks, _world_to_voxel
+def _create_slice_viewer(nifti_data, landmark_data, bezier_curves, control_points):
     slices = nifti_data.shape[2]
     
     app = dash.Dash(__name__)
@@ -76,6 +76,17 @@ def _create_slice_viewer(nifti_data, landmark_data, bezier_curves):
                     z_values = [point[2] for point in curve]
                     fig.add_trace(go.Scatter(x=x_values, y=z_values, mode='lines', line=dict(color='cyan'), name='Curve'))
             
+            for point in control_points:
+                unique_y = point[1]
+                if unique_y == slice_idx:
+                    (x, y, z) = point
+                    fig.add_trace(go.Scatter(
+                        x=[x], y=[z],
+                        mode='markers+text',
+                        marker=dict(color='orange', size=6),
+                        text='G_i',
+                        textposition='top center'
+                    ))
         # Add landmark points if they are in the current slice
         for label, value in landmark_data.items():
             if isinstance(value[0], (list, tuple, np.ndarray)):
@@ -198,13 +209,14 @@ def align_surface(image, voxels, point_filter):
 
 
 def create_slice_app(image_name, dataLoader):
-    nifti_data, _, voxels = dataLoader.load_data(image_name=image_name, trim_image=False)
-    
+    nifti_data, affine, landmarks = dataLoader.load_data(image_name=image_name, trim_image=False)
+    voxels = _map_landmarks(landmarks, _world_to_voxel, np.linalg.inv(affine))
     point_filter = ['R', 'RLC', 'RNC']
 
     rotated_image, rotated_voxels = align_surface(nifti_data, voxels, point_filter)
 
     RCI_left, _, RCI_right, _ = split_and_approximate_curve(rotated_voxels['RCI'], middle_point=np.array(rotated_voxels['R']))
+
     Bezier_RCI_left = sample_bezier_curve_3d(RCI_left, granularity=100)
     Bezier_RCI_right = sample_bezier_curve_3d(RCI_right, granularity=100)
     # Project RCI onto plane.
@@ -229,8 +241,13 @@ def create_slice_app(image_name, dataLoader):
             new_point = [point[0], y_level, point[2]]
             new_curve.append(new_point)
         bezier_curves.append(new_curve)
+    
+    control_points = []
+    for point in [RCI_left[1], RCI_right[1]]:
+        new_point = [point[0], y_level, point[2]]
+        control_points.append(new_point)
 
-    app = _create_slice_viewer(rotated_image, rotated_voxels, bezier_curves)
+    app = _create_slice_viewer(rotated_image, rotated_voxels, bezier_curves, control_points)
     app.run_server(debug=True)
 
 def view_curve(image_name, dataLoader):

@@ -18,8 +18,8 @@ import matplotlib.pyplot as plt
 class Trainer:
     def __init__(self,  action_dim : int,
                         train_environment: MedicalImageEnvironment = None,
-                        eval_environment: MedicalImageEnvironment =None,
-                        test_environment: MedicalImageEnvironment =None, 
+                        eval_environment: MedicalImageEnvironment = None,
+                        test_environment: MedicalImageEnvironment = None, 
                         logger=None,
                         dataLoader=None, 
                         task="train", 

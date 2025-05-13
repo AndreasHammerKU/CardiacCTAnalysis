@@ -1,8 +1,10 @@
 from utils.logger import setup_logger, MedicalLogger
 from utils.parser import ExperimentConfig, load_config_from_yaml, parse_args
-from bin.Environment import MedicalImageEnvironment
+from bin.Environment import MedicalImageEnvironment, rearrange_points
 from bin.DataLoader import DataLoader
 from bin.Trainer import Trainer
+import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 import constants as c
 import os
@@ -51,12 +53,8 @@ def train_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : 
                      gamma=config.gamma,
                      tau=config.tau)
     
-    #trainer.train()
-    #logger.save_to_hdf5(config_obj=config, directory="logs")
-    train_env.get_next_image()
-    train_env.reset()
-    #train_env.visualize_current_state()
-    #eval_env.visualize_current_state()
+    trainer.train()
+    logger.save_to_hdf5(config_obj=config, directory="logs")
 
 def test_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : DataLoader, external=False):
     logger.create_dataframes()
@@ -96,6 +94,7 @@ def test_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : D
     test_env.visualize_current_state()
 
 def debug_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : DataLoader):
+    # Runs auxilary functions and debug statistics
     logger.create_dataframes()
 
     train_env = MedicalImageEnvironment(logger=logger,
@@ -142,15 +141,40 @@ def debug_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : 
     train_env.get_next_image()
     state = train_env.reset()
     #train_env.visualize_current_state()
+    pairwise_matrixes = []
     for i in range(len(full_image_set)):
         print("Image: ", i+1)
         eval_env.get_next_image()
         state = eval_env.reset()
-        for stat in eval_env.geometry.STATS_list:
-            if stat['max_error'] > 2.909751 + 3*1.663999:
-                eval_env.geometry.plot(plot_geometric_heights=False, plot_seams=False)
-    stats = eval_env.compile_curve_fitting_statistics()
-    print(stats)
+        eval_env.visualize_current_state()
+        #eval_env.visualize_current_state(only_ground_truth=True)
+        #eval_env.geometry.plot(plot_geometric_heights=False, plot_basal_ring=True, plot_bezier_curves=True, plot_label_points=False)
+        pairwise_matrixes.append(eval_env.pairwise_distances)
+        #for stat in eval_env.geometry.STATS_list:
+        #    if stat['max_error'] > 2.909751 + 3*1.663999:
+        #        eval_env.geometry.plot(plot_geometric_heights=False, plot_seams=False)
+    #stats = eval_env.compile_curve_fitting_statistics()
+    pairwise_matrixes = np.array(pairwise_matrixes)
+    avg_distances = np.mean(pairwise_matrixes, axis=0)
+    var_distances = np.var(pairwise_matrixes, axis=0)
+
+    order = [0, 3, 1, 4, 2, 5]
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    # Average Distance Heatmap
+    sns.heatmap(avg_distances[order, :][:, order], ax=axes[0], cmap='Blues', annot=True, fmt=".2f")
+    axes[0].set_title("Average Pairwise Distances")
+    axes[0].set_xlabel("Points")
+    axes[0].set_ylabel("Points")
+
+    # Variance Heatmap
+    sns.heatmap(var_distances[order, :][:, order], ax=axes[1], cmap='Reds', annot=True, fmt=".2f")
+    
+    axes[1].set_title("Variance of Pairwise Distances")
+    axes[1].set_xlabel("Points")
+    axes[1].set_ylabel("Points")
+
+    plt.tight_layout()
+    plt.show()
     
 
 def main():

@@ -5,7 +5,8 @@ from utils.geometry_fitting import LeafletGeometry
 import matplotlib.pyplot as plt
 from scipy.spatial import KDTree
 from bin.DataLoader import DataLoader, world_to_voxel, voxel_to_world
-from pycpd import AffineRegistration
+from scipy.cluster.hierarchy import linkage, dendrogram
+from pycpd import AffineRegistration, DeformableRegistration
 import constants as c
 import torch
 from tqdm import tqdm
@@ -97,7 +98,8 @@ class MedicalImageEnvironment(gym.Env):
         
         self.all_stats += self.geometry.STATS_list
 
-        #self.geometry.plot(plot_bezier_curves=False, plot_control_points=False, plot_label_points=True)
+        self.pairwise_distances = self.geometry.get_pairwise_distances()
+        
         self._p0, self._ground_truth, self._p2 = self.geometry.get_voxel_control_points()
 
         if self.task != "train":
@@ -116,7 +118,7 @@ class MedicalImageEnvironment(gym.Env):
             )
 
 
-    def _get_test_starting_point(self, test_landmarks, train_landmarks, train_ground_truths):
+    def _get_test_starting_point(self, test_landmarks, train_landmarks, train_ground_truths, rigid=False):
         """
         test_anchors: (6, 3)
         train_anchors: (n_images, 6, 3)
@@ -130,11 +132,18 @@ class MedicalImageEnvironment(gym.Env):
             train_anchor = train_landmarks[i]   # (6, 3)
             train_gt = train_ground_truths[i] # (6, 3)
     
-            reg = AffineRegistration(X=test_landmarks, Y=train_anchor)
-            TY, (B, t) = reg.register()
+            if rigid:
+                reg = AffineRegistration(X=test_landmarks, Y=train_anchor)
+                TY, (B, t) = reg.register()
     
-            # Transform the ground truth landmarks
-            inferred_gt = (train_gt @ B) + t  # (6, 3)
+                # Transform the ground truth landmarks
+                inferred_gt = (train_gt @ B) + t  # (6, 3)
+            else:
+                reg = DeformableRegistration(X=test_landmarks, Y=train_anchor)
+                TY, _ = reg.register()
+                G, W = reg.get_registration_parameters()
+                inferred_gt = train_gt + G @ W
+
             inferred_landmarks.append(inferred_gt)
     
             # Calculate registration error (simple L2 norm between matched anchors)
@@ -206,14 +215,15 @@ class MedicalImageEnvironment(gym.Env):
         rewards = np.linalg.norm(self._location - self._ground_truth, axis=1) - np.linalg.norm(new_locations - self._ground_truth, axis=1)
         
         self._location = new_locations
+        
+        centered_positions = self._location - self._location.mean(axis=0)
         self.state = self._update_state()
         
         self.distance_to_truth = np.linalg.norm(self._location - self._ground_truth, axis=1)
         done = np.all(self._location == self._ground_truth, axis=1, keepdims=True)
-
-        return self.state, self._location, rewards, done
+        return self.state, centered_positions, rewards, done
     
-    def visualize_current_state(self, granularity=50):
+    def visualize_current_state(self, granularity=50, only_ground_truth=False):
         fig = plt.figure(figsize=(8,6))
         ax = fig.add_subplot(111, projection='3d')
 
@@ -223,21 +233,21 @@ class MedicalImageEnvironment(gym.Env):
         for point in self._p2:
             ax.scatter(point[0], point[1], point[2], color='black', marker='o')
         for point in self._ground_truth:
-            ax.scatter(point[0], point[1], point[2], color='black', marker='o')
+            ax.scatter(point[0], point[1], point[2], color='orange', marker='o')       
 
-        for point in self._location:
-            ax.scatter(point[0], point[1], point[2], color='red', marker='o')
+        if not only_ground_truth:
+            for point in self._location:
+                ax.scatter(point[0], point[1], point[2], color='red', marker='o')
 
         t_values = np.linspace(0, 1, granularity)
         true_bezier_curves = [plotting_bezier_curve(self._p0[i], self._ground_truth[i], self._p2[i], t_values) for i in range(self.agents)]
-
-        current_bezier_cruves = [plotting_bezier_curve(self._p0[i], self._location[i], self._p2[i], t_values) for i in range(self.agents)]
-        
         for curve in true_bezier_curves:
             ax.plot(curve[:,0], curve[:,1], curve[:,2], color='green')
-
-        for curve in current_bezier_cruves:
-            ax.plot(curve[:,0], curve[:,1], curve[:,2], color='red')
+        
+        if not only_ground_truth:
+            current_bezier_cruves = [plotting_bezier_curve(self._p0[i], self._location[i], self._p2[i], t_values) for i in range(self.agents)]
+            for curve in current_bezier_cruves:
+                ax.plot(curve[:,0], curve[:,1], curve[:,2], color='red')
 
         ax.set_xlabel("X Axis")
         ax.set_ylabel("Y Axis")
@@ -369,3 +379,26 @@ def add_noise_to_bezier_points(p0, p1, p2, endpoint_std=0.2, control_std=0.4):
     p1_noisy = np.round(p1_noisy).astype(np.int16)
 
     return p0_noisy, p1_noisy, p2_noisy
+
+
+def rearrange_points(distance_matrix):
+    """
+    Rearranges points using hierarchical clustering for better heatmap visualization.
+    
+    Args:
+        distance_matrix (numpy array): Symmetric pairwise distance matrix.
+    
+    Returns:
+        numpy array: Reordered distance matrix.
+        list: Ordered labels.
+    """
+    # Perform hierarchical clustering to determine the order
+    linkage_matrix = linkage(distance_matrix, method='average')
+    dendro = dendrogram(linkage_matrix, no_plot=True)
+    order = dendro['leaves']
+    
+    # Reorder the distance matrix
+    reordered_matrix = distance_matrix[order, :][:, order]
+    ordered_labels = [f'Point_{i+1}' for i in order]
+    
+    return reordered_matrix, ordered_labels

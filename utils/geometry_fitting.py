@@ -3,6 +3,7 @@ import numpy as np
 from scipy.optimize import least_squares, minimize_scalar
 from sklearn.linear_model import LinearRegression
 from bin.DataLoader import _world_to_voxel, _voxel_to_world
+from scipy.spatial.distance import pdist, squareform
 
 
 class LeafletGeometry():
@@ -35,6 +36,11 @@ class LeafletGeometry():
         p2_voxel = np.array([_world_to_voxel(p, inv_affine) for p in p2], dtype=np.int16)
         return p0_voxel, gt_voxel, p2_voxel
 
+
+    def get_pairwise_distances(self):
+        _, gt, _ = zip(*self.Control_points)
+        return squareform(pdist(np.array(gt)))
+
     def calculate_bezier_curves(self, granularity=100):
         # Find control points
         self.RCI_left, self.STATS_RCI_left, self.RCI_right, self.STATS_RCI_right = split_and_approximate_curve(self.landmarks['RCI'], np.array(self.landmarks['R']))
@@ -53,12 +59,23 @@ class LeafletGeometry():
 
         self.Bezier_curves = [self.Bezier_RCI_left, self.Bezier_RCI_right, self.Bezier_LCI_left, self.Bezier_LCI_right, self.Bezier_NCI_left, self.Bezier_NCI_right]
 
-    def plot(self, plot_control_points = True, plot_label_points = True, plot_bezier_curves = True, plot_single_points = True, plot_geometric_heights = True, plot_seams = True):
+    def plot(self, 
+             plot_control_points = True, 
+             plot_label_points = True, 
+             plot_bezier_curves = True, 
+             plot_single_points = True, 
+             plot_geometric_heights = True,
+             plot_basal_ring = True):
 
         fig = plt.figure(figsize=(8,6))
         ax = fig.add_subplot(111, projection='3d')
 
         if plot_control_points:
+            order = [0, 3, 1, 4, 2, 5]
+            new_list = np.array(self.Control_points)[order]
+            ax.plot([new_list[0][1,0], new_list[1][1,0]], [new_list[0][1,1], new_list[1][1,1]], [new_list[0][1,2], new_list[1][1,2]], color='orange', linestyle='dashed')
+            ax.plot([new_list[2][1,0], new_list[3][1,0]], [new_list[2][1,1], new_list[3][1,1]], [new_list[2][1,2], new_list[3][1,2]], color='orange', linestyle='dashed') 
+            ax.plot([new_list[4][1,0], new_list[5][1,0]], [new_list[4][1,1], new_list[5][1,1]], [new_list[4][1,2], new_list[5][1,2]], color='orange', linestyle='dashed')
             for control_points in self.Control_points:
                 ax.scatter(control_points[1,0], control_points[1,1], control_points[1,2], color='orange', marker='o')
 
@@ -82,15 +99,10 @@ class LeafletGeometry():
             for point_curve in self.GH_curves:
                 curve = np.array(point_curve)
                 ax.plot(curve[:,0], curve[:,1], curve[:,2], color='red', label='Geometric Height')
-   
-        curve = np.array(self.landmarks['BR - closed'])
-        ax.plot(curve[:,0], curve[:,1], curve[:,2], color='black', label='Basal Ring')
-        #curve = np.array(self.landmarks['RLS - closed'])
-        #ax.plot(curve[:,0], curve[:,1], curve[:,2], color='purple')
-        #curve = np.array(self.landmarks['RNS - closed'])
-        #ax.plot(curve[:,0], curve[:,1], curve[:,2], color='purple')
-        #curve = np.array(self.landmarks['LNS - closed'])
-        #ax.plot(curve[:,0], curve[:,1], curve[:,2], color='purple')
+        
+        if plot_basal_ring:
+            curve = np.array(self.landmarks['BR - closed'])
+            ax.plot(curve[:,0], curve[:,1], curve[:,2], color='black', label='Basal Ring')
         
         # Labels
         #ax.set_xlabel("X Axis")
