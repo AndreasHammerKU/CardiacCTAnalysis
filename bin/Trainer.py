@@ -183,7 +183,6 @@ class Trainer:
                 current_distances = self.env.distance_to_truth
                 closest_point = np.minimum(closest_point, current_distances)
                 furthest_point = np.maximum(furthest_point, current_distances)
-                print("Done: ", self.total_steps, done)
 
             avg_error_mm = self.env.get_curve_error(t_values=np.linspace(0,1, 100), points=self.env._location)
             worst_error_mm = self.env.get_curve_error(t_values=np.array([0.5]), points=self.env._location)
@@ -193,7 +192,7 @@ class Trainer:
             self.logger.info(
                     f"Episode {episode + 1}: Total Reward = {total_reward:.2f} | "
                     f"Final Avg Distance {end_avg_dist:.2f} | Average error in mm {np.round(avg_error_mm,2)} | Worst Error in mm {np.round(worst_error_mm, 2)} "
-                    f"Avg Closest Point = {avg_closest_point:.2f} | Avg Furthest Point = {avg_furthest_point:.2f}"
+                    f"Avg Closest Point = {avg_closest_point:.2f} | Avg Furthest Point = {avg_furthest_point:.2f} | Finished Agents = {done}"
             )
             self.logger.insert_train_row(episode+1, total_reward, end_avg_dist, avg_error_mm, worst_error_mm, avg_closest_point, avg_furthest_point)
                 
