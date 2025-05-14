@@ -118,7 +118,7 @@ class MedicalImageEnvironment(gym.Env):
             )
 
 
-    def _get_test_starting_point(self, test_landmarks, train_landmarks, train_ground_truths, rigid=False):
+    def _get_test_starting_point(self, test_landmarks, train_landmarks, train_ground_truths, rigid=True):
         """
         test_anchors: (6, 3)
         train_anchors: (n_images, 6, 3)

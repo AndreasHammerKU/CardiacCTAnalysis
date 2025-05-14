@@ -417,11 +417,11 @@ def boxplot_test_errors(val_dfs, configs, run_ids, title_suffix="", save_path=No
         plt.axhline(baseline_naive_error, color='red', linestyle='--', label=f'Baseline Naive Error: {baseline_naive_error:.2f} mm')
         
     if baseline_CPD_error is not None:
-        plt.axhline(baseline_CPD_error, color='blue', linestyle='--', label=f'Baseline Naive Error: {baseline_CPD_error:.2f} mm')
+        plt.axhline(baseline_CPD_error, color='blue', linestyle='--', label=f'Baseline CPD Error: {baseline_CPD_error:.2f} mm')
     
     plt.legend()
-    plt.ylim((0,12))
-    plt.yticks(np.arange(0,13))
+    plt.ylim((0,8))
+    plt.yticks(np.arange(0,9))
     plt.xticks(rotation=45, ha='right')
     plt.title(f"Distribution of Mean Agent Errors per Test Run{title_suffix}")
     plt.ylabel("Mean Error per Agent (mm)")

@@ -146,14 +146,12 @@ def debug_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : 
         print("Image: ", i+1)
         eval_env.get_next_image()
         state = eval_env.reset()
-        eval_env.visualize_current_state()
+        #eval_env.visualize_current_state()
+        print(eval_env.image.shape)
         #eval_env.visualize_current_state(only_ground_truth=True)
         #eval_env.geometry.plot(plot_geometric_heights=False, plot_basal_ring=True, plot_bezier_curves=True, plot_label_points=False)
         pairwise_matrixes.append(eval_env.pairwise_distances)
-        #for stat in eval_env.geometry.STATS_list:
-        #    if stat['max_error'] > 2.909751 + 3*1.663999:
-        #        eval_env.geometry.plot(plot_geometric_heights=False, plot_seams=False)
-    #stats = eval_env.compile_curve_fitting_statistics()
+
     pairwise_matrixes = np.array(pairwise_matrixes)
     avg_distances = np.mean(pairwise_matrixes, axis=0)
     var_distances = np.var(pairwise_matrixes, axis=0)
