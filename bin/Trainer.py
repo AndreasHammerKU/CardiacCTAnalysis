@@ -149,9 +149,8 @@ class Trainer:
             while not torch.all(done) and self.total_steps <= self.max_steps:
                 # Get next action
                 actions = self.rl_model.select_action(state, location_data, self.total_steps, evaluate=False)
-                for i in range(self.agents):
-                    if done[i]:
-                        actions[i] = 6
+
+                actions[done] = 6
                 
                 # Return Result of action on environment
                 next_state, next_location_data, rewards, done = self.env.step(actions)
