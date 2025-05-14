@@ -27,13 +27,14 @@ class ExperimentConfig:
                        min_epsilon=0.01,
                        decay=250, 
                        agents=6, 
-                       tau=0.005, 
-                       max_steps=1000,
-                       evaluation_steps=30,
-                       episodes=50,
-                       image_interval=1,
+                       tau=0.01, 
+                       max_steps=500,
+                       evaluation_steps=15,
+                       episodes=100,
+                       image_interval=2,
                        evaluation_interval=10,
-                       add_noise=False):
+                       add_noise=False,
+                       affine_CPD=True):
         self.model_type=model_type
         self.attention=attention
         self.experiment=experiment
@@ -52,6 +53,7 @@ class ExperimentConfig:
         self.evaluation_interval=evaluation_interval
         self.n_sample_points=n_sample_points
         self.add_noise=add_noise
+        self.affine_CPD=affine_CPD
 
     def to_dict(self):
         return {
@@ -72,7 +74,8 @@ class ExperimentConfig:
             'image_interval': self.image_interval,
             'evaluation_interval': self.evaluation_interval,
             'n_sample_points': self.n_sample_points,
-            'add_noise': self.add_noise
+            'add_noise': self.add_noise,
+            'affine_CPD': self.affine_CPD
         }
 
 def load_config_from_yaml(path: str) -> ExperimentConfig:
