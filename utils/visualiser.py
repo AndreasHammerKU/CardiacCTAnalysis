@@ -337,10 +337,11 @@ def plot_validation_loss(val_dfs, configs, run_ids, save_path=None, plot_name=No
 
             # Step 3: Plot
             plt.plot(grouped.index, grouped.values, label=label)
-
+    
     plt.title("Validation Loss Across Runs (Mean of Avg Errors per Agent per Episode)")
     plt.xlabel("Train Episode")
     plt.ylabel("Mean Validation Error (mm)")
+    plt.xlim((10,100))
     plt.ylim((2,4))
     plt.legend()
     plt.grid(True)

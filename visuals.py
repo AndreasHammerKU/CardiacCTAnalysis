@@ -5,4 +5,4 @@ from utils.visualiser import visualize_from_logs
 
 logger = logs.setup_logger(False)
 
-visualize_from_logs(logger=logger, experiment='DDQN-enhanced-jitter', save_path=c.FIGURE_FOLDER, viz_name="run5")
+visualize_from_logs(logger=logger, experiment='DDQN-registration', save_path=c.FIGURE_FOLDER, viz_name="DQN-Final")

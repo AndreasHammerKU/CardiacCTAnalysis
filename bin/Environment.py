@@ -38,7 +38,7 @@ class MedicalImageEnvironment(gym.Env):
         self.task = task
         self.trim_image = trim_image
         
-        self.actions = [(-1, 0, 0), (1, 0, 0), (0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1)]
+        self.actions = [(-1, 0, 0), (1, 0, 0), (0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1), (0,0,0)]
         self.n_actions = len(self.actions)
         self.vision_size = vision_size
         
@@ -220,7 +220,7 @@ class MedicalImageEnvironment(gym.Env):
         self.state = self._update_state()
         
         self.distance_to_truth = np.linalg.norm(self._location - self._ground_truth, axis=1)
-        done = np.all(self._location == self._ground_truth, axis=1, keepdims=True)
+        done = np.where(self.distance_to_truth <= 3, 1, 0)
         return self.state, centered_positions, rewards, done
     
     def visualize_current_state(self, granularity=50, only_ground_truth=False):

@@ -141,7 +141,7 @@ class Trainer:
                 next_location_data = None
 
             total_reward = 0
-            done = torch.zeros(self.agents, dtype=torch.int)
+            done = torch.zeros((self.agents), dtype=torch.int)
             self.total_steps = 0
             closest_point = np.full(len(self.env._location), float('inf'))
             furthest_point = np.zeros(len(self.env._location))
@@ -149,6 +149,9 @@ class Trainer:
             while not torch.all(done) and self.total_steps <= self.max_steps:
                 # Get next action
                 actions = self.rl_model.select_action(state, location_data, self.total_steps, evaluate=False)
+                for i in range(self.agents):
+                    if done[i]:
+                        actions[i] = 6
                 
                 # Return Result of action on environment
                 next_state, next_location_data, rewards, done = self.env.step(actions)
@@ -180,6 +183,7 @@ class Trainer:
                 current_distances = self.env.distance_to_truth
                 closest_point = np.minimum(closest_point, current_distances)
                 furthest_point = np.maximum(furthest_point, current_distances)
+                print("Done: ", self.total_steps, done)
 
             avg_error_mm = self.env.get_curve_error(t_values=np.linspace(0,1, 100), points=self.env._location)
             worst_error_mm = self.env.get_curve_error(t_values=np.array([0.5]), points=self.env._location)
