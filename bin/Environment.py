@@ -7,11 +7,15 @@ from scipy.spatial import KDTree
 from bin.DataLoader import DataLoader, world_to_voxel, voxel_to_world
 from scipy.cluster.hierarchy import linkage, dendrogram
 from pycpd import AffineRegistration, DeformableRegistration
+from scipy.ndimage import map_coordinates
+from utils.visualiser import visualize_leaflet_planes
+from utils.metrics import compute_leaflet_metrics_from_landmarks
 import constants as c
 import torch
 from tqdm import tqdm
 import os
 import pandas as pd
+import scipy
 
 class MedicalImageEnvironment(gym.Env):
 
@@ -38,7 +42,7 @@ class MedicalImageEnvironment(gym.Env):
         self.task = task
         self.trim_image = trim_image
         
-        self.actions = [(-1, 0, 0), (1, 0, 0), (0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1), (0,0,0)]
+        self.actions = [(-1, 0, 0), (1, 0, 0), (0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1)]
         self.n_actions = len(self.actions)
         self.vision_size = vision_size
         
@@ -90,10 +94,9 @@ class MedicalImageEnvironment(gym.Env):
             if self.current_image >= len(self.image_list):
                 self.current_image = 0
         
-        self.image, self.affine, landmarks = self.dataLoader.load_data(image_name=image_name, trim_image=self.trim_image)
-    
+        self.image, self.affine, self.landmarks = self.dataLoader.load_data(image_name=image_name, trim_image=self.trim_image)
 
-        self.geometry = LeafletGeometry(landmarks, self.affine)
+        self.geometry = LeafletGeometry(self.landmarks, self.affine)
         self.geometry.calculate_bezier_curves()
         
         self.all_stats += self.geometry.STATS_list
@@ -117,6 +120,19 @@ class MedicalImageEnvironment(gym.Env):
                 control_std=0.4
             )
 
+    def visualize_leaflets(self, gt=False, granularity=100):
+        t_values = np.linspace(0, 1, granularity)
+        curves = []
+        for i in range(self.agents):
+            if gt:
+                curves.append(plotting_bezier_curve(self._p0[i], self._ground_truth[i], self._p2[i], t_values))
+            else:
+                curves.append(plotting_bezier_curve(self._p0[i], self._location[i], self._p2[i], t_values))
+
+        if gt:
+            visualize_leaflet_planes(self.image, self.affine, self.landmarks, extra_points=self._ground_truth, curves=curves)
+        else:
+            visualize_leaflet_planes(self.image, self.affine, self.landmarks, curves=curves)
 
     def _get_test_starting_point(self, test_landmarks, train_landmarks, train_ground_truths, rigid=True):
         """
@@ -258,6 +274,7 @@ class MedicalImageEnvironment(gym.Env):
         plt.show()
 
     def get_curve_error(self, t_values, points):
+        
         p0_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._p0])
         ground_truth_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._ground_truth])
         p2_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._p2])
@@ -268,10 +285,31 @@ class MedicalImageEnvironment(gym.Env):
             predicted_curve = plotting_bezier_curve(p0_world[i], location_world[i], p2_world[i], t_values)
 
             true_curve = plotting_bezier_curve(p0_world[i], ground_truth_world[i], p2_world[i], t_values)
+            
 
             error[i] = np.sum(np.abs(predicted_curve - true_curve)) / len(predicted_curve)
 
-        return error      
+        return error    
+
+    def get_aortic_valve_metrics(self):
+        p0_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._p0])
+        ground_truth_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._ground_truth])
+        p2_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._p2])
+        location_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._location])
+
+        t_values = np.linspace(0,1, 100)
+
+        predicted_curves = []
+        true_curves = []
+        for i in range(self.agents):
+            predicted_curves.append(plotting_bezier_curve(p0_world[i], location_world[i], p2_world[i], t_values))
+            true_curves.append(plotting_bezier_curve(p0_world[i], ground_truth_world[i], p2_world[i], t_values))
+
+
+        metrics_true = compute_leaflet_metrics_from_landmarks(self.landmarks, true_curves, control_points=ground_truth_world)
+        metrics_pred = compute_leaflet_metrics_from_landmarks(self.landmarks, predicted_curves, control_points=location_world)
+
+        return metrics_true, metrics_pred
     
     def get_distance_field(self, max_distance=5, granularity=50):
         bezier_points = np.zeros((

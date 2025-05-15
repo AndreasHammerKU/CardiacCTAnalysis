@@ -149,8 +149,6 @@ class Trainer:
             while not torch.all(done) and self.total_steps <= self.max_steps:
                 # Get next action
                 actions = self.rl_model.select_action(state, location_data, self.total_steps, evaluate=False)
-
-                actions[done] = 6
                 
                 # Return Result of action on environment
                 next_state, next_location_data, rewards, done = self.env.step(actions)
@@ -183,7 +181,7 @@ class Trainer:
                 closest_point = np.minimum(closest_point, current_distances)
                 furthest_point = np.maximum(furthest_point, current_distances)
 
-            avg_error_mm = self.env.get_curve_error(t_values=np.linspace(0,1, 100), points=self.env._location)
+            avg_error_mm = self.env.get_curve_error(t_values=np.linspace(0,1, 10), points=self.env._location)
             worst_error_mm = self.env.get_curve_error(t_values=np.array([0.5]), points=self.env._location)
             end_avg_dist = np.mean(current_distances)
             avg_closest_point = np.mean(closest_point)
@@ -274,7 +272,8 @@ class Trainer:
                         f"Final Avg Distance {end_avg_dist:.2f} | Average error in mm {np.round(avg_error_mm,2)} | Worst Error in mm {np.round(worst_error_mm, 2)} "
                         f"Avg Closest Point = {avg_closest_point:.2f} | Avg Furthest Point = {avg_furthest_point:.2f}"
                 )
-                self.logger.insert_val_row(self.current_episode+1, episode+1, total_reward, end_avg_dist, avg_error_mm, worst_error_mm, avg_closest_point, avg_furthest_point, naive_error_mm, CPD_distance_mm)
+                metrics_true, metrics_pred = environment.get_aortic_valve_metrics()
+                self.logger.insert_val_row(self.current_episode+1, episode+1, total_reward, end_avg_dist, avg_error_mm, worst_error_mm, avg_closest_point, avg_furthest_point, naive_error_mm, CPD_distance_mm, metrics_true, metrics_pred)
                 
                 evaluation_errors_avg.append(avg_error_mm)
                 evaluation_errors_worst.append(worst_error_mm)

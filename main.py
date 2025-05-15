@@ -91,7 +91,6 @@ def test_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : D
                      tau=config.tau)
     trainer.test()
     logger.save_to_hdf5(config_obj=config, directory="logs")
-    test_env.visualize_current_state()
 
 def debug_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : DataLoader):
     # Runs auxilary functions and debug statistics
@@ -146,10 +145,11 @@ def debug_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : 
         print("Image: ", i+1)
         eval_env.get_next_image()
         state = eval_env.reset()
-        #eval_env.visualize_current_state()
-        print(eval_env.image.shape)
-        #eval_env.visualize_current_state(only_ground_truth=True)
-        #eval_env.geometry.plot(plot_geometric_heights=False, plot_basal_ring=True, plot_bezier_curves=True, plot_label_points=False)
+        eval_env.visualize_current_state()
+        eval_env.visualize_leaflets(gt=True)
+        true, pred = eval_env.get_aortic_valve_metrics()
+        print(true, pred)
+        eval_env.geometry.plot(plot_geometric_heights=True, plot_basal_ring=True, plot_bezier_curves=True, plot_label_points=False)
         pairwise_matrixes.append(eval_env.pairwise_distances)
 
     pairwise_matrixes = np.array(pairwise_matrixes)

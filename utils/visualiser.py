@@ -5,6 +5,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 import scipy
 import utils.geometry_fitting as geom
+from scipy.ndimage import map_coordinates
 from utils.logger import MedicalLogger
 from glob import glob
 import constants as c
@@ -319,6 +320,9 @@ def visualize_from_logs(logger, save_path=None, experiment=c.DQN_LOGS, viz_name=
     boxplot_test_errors(test_val_dfs, test_configs, test_run_ids, title_suffix=" (Internal)", save_path=save_path, plot_name=f"internal-test-{viz_name}")
     boxplot_test_errors(test_ext_val_dfs, test_ext_configs, test_ext_run_ids, title_suffix=" (External)", save_path=save_path, plot_name=f"external-test-{viz_name}")
 
+    process_metric_data(test_val_dfs, test_configs, test_run_ids, title_suffix=" (Internal)")
+    process_metric_data(test_ext_val_dfs, test_ext_configs, test_ext_run_ids, title_suffix=" (External)")
+
 def plot_validation_loss(val_dfs, configs, run_ids, save_path=None, plot_name=None):
     plt.figure(figsize=(12, 6))
     
@@ -432,3 +436,157 @@ def boxplot_test_errors(val_dfs, configs, run_ids, title_suffix="", save_path=No
         plt.savefig(os.path.join(save_path, plot_name) + ".png", format='png')
     else:
         plt.show()
+
+def process_metric_data(val_dfs, configs, run_ids, title_suffix=""):
+    metrics_cols = [
+            "R_cusp_insertion", "L_cusp_insertion", "N_cusp_insertion",
+            "R_belly_angle", "L_belly_angle", "N_belly_angle", "Mean_belly_angle",
+            "RL_angle", "LN_angle", "NR_angle", "Mean_inter_leaflet_angle"
+    ]
+    summaries = []
+    for val_df, config, run_id in zip(val_dfs, configs, run_ids):
+        summary = {}
+
+        for col in metrics_cols:
+            true_col = f"true_{col}"
+            pred_col = f"pred_{col}"
+
+            if true_col in val_df.columns and pred_col in val_df.columns:
+                diff = val_df[pred_col] - val_df[true_col]
+                mean_diff = diff.mean()
+                std_diff = diff.std()
+                summary[col] = f"{mean_diff:+.2} ± {std_diff:.2f}"
+            else:
+                summary[col] = "N/A"
+        summaries.append({
+            "run_id": run_id,
+            "diffs": summary
+        })
+
+    return summaries
+
+def extract_plane_slice_with_points_full(image, p0, p1, p2, points_to_project, size=100):
+    """
+    Like extract_plane_slice_with_points, but returns u, v, origin for projecting more points.
+    """
+    image = np.transpose(image, (2, 1, 0))
+
+    v1 = np.array(p1) - np.array(p0)
+    v2 = np.array(p2) - np.array(p0)
+    normal = np.cross(v1, v2)
+    normal = normal / np.linalg.norm(normal)
+
+    u = v1 / np.linalg.norm(v1)
+    v = np.cross(normal, u)
+
+    center = (np.array(p0) + np.array(p1) + np.array(p2)) / 3.0
+
+    grid_lin = np.linspace(-size/2, size/2, size)
+    grid_x, grid_y = np.meshgrid(grid_lin, grid_lin)
+    grid_voxels = center + grid_x[..., None] * u + grid_y[..., None] * v
+
+    coords = np.stack([
+        grid_voxels[..., 2],
+        grid_voxels[..., 1],
+        grid_voxels[..., 0]
+    ], axis=0)
+
+    slice_image = map_coordinates(image, coords, order=1, mode='nearest')
+
+    # Project the main control points
+    projected_pts = []
+    for pt in points_to_project:
+        rel = np.array(pt) - center
+        x = np.dot(rel, u)
+        y = np.dot(rel, v)
+        projected_pts.append((x, y))
+
+    return slice_image, grid_x, grid_y, projected_pts, u, v, center
+
+def visualize_leaflet_planes(image, affine, landmarks, extra_points=None, curves=None):
+    from numpy.linalg import inv
+
+    inv_affine = inv(affine)
+
+    def to_voxel(name):
+        return _world_to_voxel(landmarks[name], inv_affine)
+
+    def project_point_to_plane(point, origin, u, v):
+        rel = np.array(point) - origin
+        x = np.dot(rel, u)
+        y = np.dot(rel, v)
+        return x, y
+
+    leaflets = {
+        "Right": ['RLC', 'R', 'RNC'],
+        "Left": ['LNC', 'L', 'RLC'],
+        "Non-coronary": ['RNC', 'N', 'LNC'],
+    }
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+    for i, (ax, (leaflet_name, keys)) in enumerate(zip(axes, leaflets.items())):
+        p0 = to_voxel(keys[0])
+        p1 = to_voxel(keys[1])
+        p2 = to_voxel(keys[2])
+
+        control_voxels = [to_voxel(k) for k in keys]
+        slice_img, gx, gy, projected_pts, u, v, origin = extract_plane_slice_with_points_full(
+            image, p0, p1, p2, control_voxels, size=100
+        )
+
+        ax.imshow(slice_img, cmap='gray', origin='lower',
+                  extent=[gx.min(), gx.max(), gy.min(), gy.max()])
+
+
+        ax.plot(projected_pts[0][0], projected_pts[0][1], 'ro')
+        ax.text(projected_pts[0][0] + 2, projected_pts[0][1] + 2, 'Commisure', color='red', fontsize=9)
+        ax.plot(projected_pts[1][0], projected_pts[1][1], 'ro')
+        ax.text(projected_pts[1][0] + 2, projected_pts[1][1] + 2, 'Cusp', color='red', fontsize=9)
+        ax.plot(projected_pts[2][0], projected_pts[2][1], 'ro')
+        ax.text(projected_pts[2][0] + 2, projected_pts[2][1] + 2, 'Commisure', color='red', fontsize=9)
+
+        # Add extra points if given
+        if extra_points is not None:
+            pt1 = extra_points[2 * i]
+            pt2 = extra_points[2 * i + 1]
+
+            px1, py1 = project_point_to_plane(pt1, origin, u, v)
+            px2, py2 = project_point_to_plane(pt2, origin, u, v)
+
+            ax.plot(px1, py1, 'bo')
+            ax.text(px1+2, py1+2, 'G_i', color='blue')
+            ax.plot(px2, py2, 'bo')
+            ax.text(px2+2, py2+2, 'G_i', color='blue')
+
+        # Plot Bezier curve
+        if curves is not None:
+            curve1 = curves[2*i]  # Nx3
+            curve2 = curves[2*i + 1]
+            cx, cy = project_curve_to_plane(np.array(curve1), origin, u, v)
+            ax.plot(cx, cy, 'r-', linewidth=2)
+            cx, cy = project_curve_to_plane(np.array(curve2), origin, u, v)
+            ax.plot(cx, cy, 'r-', linewidth=2)
+
+        ax.set_title(f"{leaflet_name} Leaflet")
+
+    plt.tight_layout()
+    plt.show()
+
+def project_point_to_plane(point, origin, u, v):
+    """
+    Project a single 3D point into 2D coordinates of the plane.
+    """
+    rel = np.array(point) - origin
+    x = np.dot(rel, u)
+    y = np.dot(rel, v)
+    return x, y
+
+def project_curve_to_plane(curve_points, origin, u, v):
+    """
+    Projects a 3D curve (Nx3) into the 2D plane defined by origin, u, v.
+    """
+    rel = curve_points - origin
+    x = np.dot(rel, u)
+    y = np.dot(rel, v)
+    return x, y

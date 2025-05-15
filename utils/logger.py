@@ -35,15 +35,36 @@ class MedicalLogger:
     # === Data Management ===
     def create_dataframes(self):
         self.debug("Creating new empty DataFrames.")
+
+        metrics_cols = [
+            "R_cusp_insertion", "L_cusp_insertion", "N_cusp_insertion",
+            "R_belly_angle", "L_belly_angle", "N_belly_angle", "Mean_belly_angle",
+            "RL_angle", "LN_angle", "NR_angle", "Mean_inter_leaflet_angle"
+        ]
+        true_cols = [f"true_{col}" for col in metrics_cols]
+        pred_cols = [f"pred_{col}" for col in metrics_cols]
+
         self.train_df = pd.DataFrame(columns=["episode", "total_reward", "end_avg_dist", "avg_err_in_mm", "worst_err_in_mm", "avg_closest_point", "avg_furthest_point"])
-        self.val_df = pd.DataFrame(columns=["train_episode", "episode", "total_reward", "end_avg_dist", "avg_err_in_mm", "worst_err_in_mm", "avg_closest_point", "avg_furthest_point", "naive_distance_mm", "CPD_distance_mm"])
+        self.val_df = pd.DataFrame(columns=["train_episode", "episode", "total_reward", "end_avg_dist", "avg_err_in_mm", "worst_err_in_mm", "avg_closest_point", "avg_furthest_point", "naive_distance_mm", "CPD_distance_mm"] + true_cols + pred_cols)
     def insert_train_row(self, episode, total_reward, end_avg_dist, avg_err_in_mm, worst_err_in_mm, avg_closest_point, avg_furthest_point):
         self.debug(f"Inserting row into train_df: episode={episode}")
         self.train_df.loc[len(self.train_df)] = [episode, total_reward, end_avg_dist, avg_err_in_mm, worst_err_in_mm, avg_closest_point, avg_furthest_point]
 
-    def insert_val_row(self, train_episode, episode, total_reward, end_avg_dist, avg_err_in_mm, worst_err_in_mm, avg_closest_point, avg_furthest_point, naive_distance_mm, CPD_distance_mm):
+    def insert_val_row(self, train_episode, episode, total_reward, end_avg_dist, avg_err_in_mm, worst_err_in_mm, avg_closest_point, avg_furthest_point, naive_distance_mm, CPD_distance_mm, true_metrics: dict, pred_metrics: dict):
         self.debug(f"Inserting row into val_df: episode={episode}")
-        self.val_df.loc[len(self.val_df)] = [train_episode, episode, total_reward, end_avg_dist, avg_err_in_mm, worst_err_in_mm, avg_closest_point, avg_furthest_point, naive_distance_mm, CPD_distance_mm]
+
+        metrics_cols = [
+            "R_cusp_insertion", "L_cusp_insertion", "N_cusp_insertion",
+            "R_belly_angle", "L_belly_angle", "N_belly_angle", "Mean_belly_angle",
+            "RL_angle", "LN_angle", "NR_angle", "Mean_inter_leaflet_angle"
+        ]
+        true_vals = [true_metrics.get(key, None) for key in metrics_cols]
+        pred_vals = [pred_metrics.get(key, None) for key in metrics_cols]
+
+        row = [train_episode, episode, total_reward, end_avg_dist,
+                avg_err_in_mm, worst_err_in_mm, avg_closest_point,
+                avg_furthest_point, naive_distance_mm, CPD_distance_mm] + true_vals + pred_vals
+        self.val_df.loc[len(self.val_df)] = row
 
     def clear_dataframes(self):
         self.debug("Clearing existing DataFrames.")

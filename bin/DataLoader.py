@@ -1,6 +1,8 @@
 
 import json
 import nibabel as nib
+from nibabel.orientations import aff2axcodes
+import matplotlib.pyplot as plt
 import os
 import constants as c
 from collections import namedtuple
@@ -85,7 +87,7 @@ class DataLoader():
         # Load NIfTI file
         nifti_path = self.image_dict[image_name]
         nifti_data, affine = self._load_nifti(nifti_path)
-
+        
         # Load landmark JSON
         with open(self.landmark_dict[image_name]) as file:
             landmark_data = json.load(file)
