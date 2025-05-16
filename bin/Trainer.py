@@ -207,7 +207,7 @@ class Trainer:
         """
 
         self.rl_model.eval()
-
+        evaluation_total_reward = []
         evaluation_errors_avg = []
         evaluation_errors_worst = []
         with torch.no_grad():  # No gradient tracking needed for evaluation
@@ -263,6 +263,7 @@ class Trainer:
                 avg_error_mm = environment.get_curve_error(t_values=np.linspace(0, 1, 100), points=environment._location)
                 worst_error_mm = environment.get_curve_error(t_values=np.array([0.5]), points=environment._location)
                 naive_error_mm = environment.get_curve_error(t_values=np.linspace(0, 1, 100), points=environment.midpoint).mean()
+                evaluation_total_reward.append(total_reward)
                 
                 end_avg_dist = np.mean(current_distances)
                 avg_closest_point = np.mean(closest_point)
@@ -281,8 +282,10 @@ class Trainer:
         self.logger.info("===== Evaluation Summary =====")
         make_boxplot(evaluation_errors_avg)
         make_boxplot(evaluation_errors_worst)
+        avg_total_reward = evaluation_total_reward.mean()
 
         self.rl_model.train()  # Return to train mode
+        return avg_total_reward
 
     def test(self):
         self._evaluate(self.test_env)
