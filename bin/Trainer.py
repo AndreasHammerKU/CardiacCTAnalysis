@@ -142,7 +142,7 @@ class Trainer:
                 next_location_data = None
 
             total_reward = 0
-            done = torch.zeros((self.agents), dtype=torch.int)
+            done = torch.zeros(self.agents, dtype=torch.int)
             self.total_steps = 0
             closest_point = np.full(len(self.env._location), float('inf'))
             furthest_point = np.zeros(len(self.env._location))
@@ -190,7 +190,7 @@ class Trainer:
             self.logger.info(
                     f"Episode {episode + 1}: Total Reward = {total_reward:.2f} | "
                     f"Final Avg Distance {end_avg_dist:.2f} | Average error in mm {np.round(avg_error_mm,2)} | Worst Error in mm {np.round(worst_error_mm, 2)} "
-                    f"Avg Closest Point = {avg_closest_point:.2f} | Avg Furthest Point = {avg_furthest_point:.2f} | Finished Agents = {done}"
+                    f"Avg Closest Point = {avg_closest_point:.2f} | Avg Furthest Point = {avg_furthest_point:.2f}"
             )
             self.logger.insert_train_row(episode+1, total_reward, end_avg_dist, avg_error_mm, worst_error_mm, avg_closest_point, avg_furthest_point)
                 

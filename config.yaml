@@ -1,12 +1,12 @@
 model_type: Network3D
 attention: false
 experiment: SHARE_PAIRWISE
-rl_framework: DDQN
+rl_framework: DQN
 lr: 0.001
 gamma: 0.95
 max_epsilon: 1.0
 min_epsilon: 0.05
-decay: 150
+decay: 50
 agents: 6
 tau: 0.01
 max_steps: 10

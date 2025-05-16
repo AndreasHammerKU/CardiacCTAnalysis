@@ -236,7 +236,7 @@ class MedicalImageEnvironment(gym.Env):
         self.state = self._update_state()
         
         self.distance_to_truth = np.linalg.norm(self._location - self._ground_truth, axis=1)
-        done = np.where(self.distance_to_truth <= 3, 1, 0)
+        done = np.all(self._location == self._ground_truth, axis=1, keepdims=True)
         return self.state, centered_positions, rewards, done
     
     def visualize_current_state(self, granularity=50, only_ground_truth=False):
