@@ -58,6 +58,7 @@ class Trainer:
         self.model_name = model_name
         self.current_episode = 0
 
+        self.best_val_reward = float('-inf')
         self.rl_framework = rl_framework
         if self.rl_framework == "DQN":
             self.rl_model = DQN(action_dim=action_dim, 
@@ -195,7 +196,13 @@ class Trainer:
                 
             if (episode + 1) % self.eval_interval == 0:
                 self.logger.info(f"===== Validation Run =====")
-                self._evaluate(self.eval_env)
+                avg_val_reward = self._evaluate(self.eval_env)
+                self.logger.info(f"Average Validation Reward: {avg_val_reward:.2f}")
+                if avg_val_reward > self.best_val_reward:
+                    self.best_val_reward = avg_val_reward
+                    self.logger.info(f"New best validation reward! Saving model.")
+                    self.rl_model.save_model(dataLoader=self.dataLoader, model_name=f"{self.rl_framework}-{self.model_type}-{self.experiment.name}" + "-best-model")
+                
         if self.model_name is not None:
             self.rl_model.save_model(dataLoader=self.dataLoader, model_name=self.model_name)
         else:
@@ -282,8 +289,8 @@ class Trainer:
         self.logger.info("===== Evaluation Summary =====")
         make_boxplot(evaluation_errors_avg)
         make_boxplot(evaluation_errors_worst)
-        avg_total_reward = evaluation_total_reward.mean()
-
+        avg_total_reward = np.mean(evaluation_total_reward)
+        print(f"Average Total Reward: {avg_total_reward:.2f}")
         self.rl_model.train()  # Return to train mode
         return avg_total_reward
 

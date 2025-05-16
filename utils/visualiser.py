@@ -320,8 +320,31 @@ def visualize_from_logs(logger, save_path=None, experiment=c.DQN_LOGS, viz_name=
     boxplot_test_errors(test_val_dfs, test_configs, test_run_ids, title_suffix=" (Internal)", save_path=save_path, plot_name=f"internal-test-{viz_name}")
     boxplot_test_errors(test_ext_val_dfs, test_ext_configs, test_ext_run_ids, title_suffix=" (External)", save_path=save_path, plot_name=f"external-test-{viz_name}")
 
-    process_metric_data(test_val_dfs, test_configs, test_run_ids, title_suffix=" (Internal)")
-    process_metric_data(test_ext_val_dfs, test_ext_configs, test_ext_run_ids, title_suffix=" (External)")
+    internal_stats = process_metric_data(test_val_dfs, test_configs, test_run_ids, title_suffix=" (Internal)")
+    external_stats = process_metric_data(test_ext_val_dfs, test_ext_configs, test_ext_run_ids, title_suffix=" (External)")
+
+    print_metric_summaries(internal_stats, title="Internal Test Metric Differences")
+    print_metric_summaries(external_stats, title="External Test Metric Differences")
+
+def print_metric_summaries(summaries, title="Validation Metric Differences"):
+    """
+    Print metric comparison summaries (mean ± std) for each run.
+
+    Parameters:
+    - summaries: list of dicts from process_metric_data()
+                 Each should have keys: 'run_id', 'config', 'differences'
+    - title: optional overall title for the printout
+    """
+    print(f"\n=== {title} ===\n")
+
+    for summary in summaries:
+        run_label = summary.get("run_id")
+        print(f"--- {run_label} ---")
+        
+        for metric, result in summary["differences"].items():
+            print(f"{metric:<30}: {result}")
+        
+        print()  # newline for spacing between runs
 
 def plot_validation_loss(val_dfs, configs, run_ids, save_path=None, plot_name=None):
     plt.figure(figsize=(12, 6))
@@ -460,7 +483,7 @@ def process_metric_data(val_dfs, configs, run_ids, title_suffix=""):
                 summary[col] = "N/A"
         summaries.append({
             "run_id": run_id,
-            "diffs": summary
+            "differences": summary
         })
 
     return summaries

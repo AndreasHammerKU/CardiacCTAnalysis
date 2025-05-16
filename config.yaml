@@ -9,9 +9,9 @@ min_epsilon: 0.05
 decay: 150
 agents: 6
 tau: 0.01
-max_steps: 500
+max_steps: 10
 evaluation_steps: 15
-episodes: 6
+episodes: 100
 image_interval: 2
 evaluation_interval: 10
 n_sample_points: 5
