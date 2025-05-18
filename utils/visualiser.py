@@ -11,6 +11,7 @@ from glob import glob
 import constants as c
 import os
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from utils.geometry_fitting import split_and_approximate_curve, sample_bezier_curve_3d, LeafletGeometry
 from bin.DataLoader import _map_landmarks, _world_to_voxel
 def _create_slice_viewer(nifti_data, landmark_data, bezier_curves, control_points):
@@ -587,8 +588,37 @@ def visualize_leaflet_planes(image, affine, landmarks, extra_points=None, curves
             curve1 = curves[2*i]  # Nx3
             curve2 = curves[2*i + 1]
             cx, cy = project_curve_to_plane(np.array(curve1), origin, u, v)
+            indexes = np.linspace(0, len(cx), 5).astype(int)
+            indexes[-1] -= 1
+
+            x_coords = cx[indexes]
+            y_coords = cy[indexes]
+
+            ax.scatter(x_coords, y_coords, color='blue', label='Sample Points')
+            side_length = 21
+            half_side = side_length / 2
+
+            # Draw squares around each point
+            for x, y in zip(x_coords, y_coords):
+                square = patches.Rectangle((x - half_side, y - half_side), side_length, side_length,
+                                           linewidth=1, edgecolor='blue', facecolor='none')
+                ax.add_patch(square)
             ax.plot(cx, cy, 'r-', linewidth=2)
+
+
             cx, cy = project_curve_to_plane(np.array(curve2), origin, u, v)
+            x_coords = cx[indexes]
+            y_coords = cy[indexes]
+
+            ax.scatter(x_coords, y_coords, color='blue', label='Sample Points')
+            side_length = 21
+            half_side = side_length / 2
+
+            # Draw squares around each point
+            for x, y in zip(x_coords, y_coords):
+                square = patches.Rectangle((x - half_side, y - half_side), side_length, side_length,
+                                           linewidth=1, edgecolor='blue', facecolor='none')
+                ax.add_patch(square)
             ax.plot(cx, cy, 'r-', linewidth=2)
 
         ax.set_title(f"{leaflet_name} Leaflet")
