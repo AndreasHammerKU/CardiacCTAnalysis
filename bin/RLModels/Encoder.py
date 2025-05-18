@@ -6,24 +6,20 @@ class FeatureEncoder(nn.Module):
 
 
         self.n_features = n_features
-        # (batch_size, in_channels, 45, 45, 45)
-        self.conv0 = self.conv_block(in_channels=in_channels, out_channels=8)
-
-        # (batch_size, in_channels, 22, 22, 22)
-        self.conv1 = self.conv_block(in_channels=8, out_channels=16)
+        # (batch_size, in_channels, 21, 21, 21)
+        self.conv1 = self.conv_block(in_channels=in_channels, out_channels=8)
         
-        # (batch_size, 8, 11, 11, 11)
-        self.conv2 = self.conv_block(in_channels=16, out_channels=32)
+        # (batch_size, 8, 10, 10, 10)
+        self.conv2 = self.conv_block(in_channels=8, out_channels=16)
        
         # (batch_size, 16, 5, 5, 5)
-        self.conv3 = self.conv_block(in_channels=32, out_channels=32)
+        self.conv3 = self.conv_block(in_channels=16, out_channels=32)
         
         # (batch_size, 32, 2, 2, 2)
         # view: (batch_size, 256)
 
     
     def forward(self, x):
-        x = self.conv0(x)
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)
