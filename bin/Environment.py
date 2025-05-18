@@ -22,7 +22,7 @@ class MedicalImageEnvironment(gym.Env):
     def __init__(self, task="train", 
                        dataLoader: DataLoader = None, 
                        n_sample_points=5,
-                       vision_size=(21, 21, 21), 
+                       vision_size=(45, 45, 45), 
                        agents=6, 
                        image_list=None, 
                        logger=None,
