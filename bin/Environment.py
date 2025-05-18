@@ -58,6 +58,8 @@ class MedicalImageEnvironment(gym.Env):
 
         if task != "train":
             self.current_image = 0
+
+        
         
         if task != "train":
             if os.path.exists(c.REGISTRATION_LANDMARKS) and os.path.exists(c.REGISTRATION_GROUND_TRUTH):
