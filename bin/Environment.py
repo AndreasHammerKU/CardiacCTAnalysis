@@ -48,7 +48,6 @@ class MedicalImageEnvironment(gym.Env):
         
         self.n_sample_points = n_sample_points
         self.t_values = np.linspace(0,1,n_sample_points)
-        print(self.t_values)
 
         self.width, self.height, self.depth = vision_size
         # Box must be odd
