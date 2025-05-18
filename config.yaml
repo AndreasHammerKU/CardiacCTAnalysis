@@ -14,5 +14,5 @@ evaluation_steps: 15
 episodes: 100
 image_interval: 2
 evaluation_interval: 10
-n_sample_points: 5
+n_sample_points: 3
 add_noise: true

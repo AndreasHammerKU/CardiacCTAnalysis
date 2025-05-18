@@ -588,14 +588,14 @@ def visualize_leaflet_planes(image, affine, landmarks, extra_points=None, curves
             curve1 = curves[2*i]  # Nx3
             curve2 = curves[2*i + 1]
             cx, cy = project_curve_to_plane(np.array(curve1), origin, u, v)
-            indexes = np.linspace(0, len(cx), 5).astype(int)
+            indexes = np.linspace(0, len(cx), 3).astype(int)
             indexes[-1] -= 1
 
             x_coords = cx[indexes]
             y_coords = cy[indexes]
 
             ax.scatter(x_coords, y_coords, color='blue', label='Sample Points')
-            side_length = 21
+            side_length = 45
             half_side = side_length / 2
 
             # Draw squares around each point
@@ -611,8 +611,6 @@ def visualize_leaflet_planes(image, affine, landmarks, extra_points=None, curves
             y_coords = cy[indexes]
 
             ax.scatter(x_coords, y_coords, color='blue', label='Sample Points')
-            side_length = 21
-            half_side = side_length / 2
 
             # Draw squares around each point
             for x, y in zip(x_coords, y_coords):
