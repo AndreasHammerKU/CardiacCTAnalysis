@@ -67,14 +67,14 @@ def test_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : D
                                        agents=config.agents,
                                        train_images=dataLoader.train,
                                        add_noise=config.add_noise)
-    
+
     trainer = Trainer(test_environment=test_env,
                      task="test",
                      logger=logger,
                      dataLoader=dataLoader,
                      action_dim=test_env.n_actions,
                      attention=config.attention,
-                     model_name=f"{config.rl_framework}-{config.model_type}-{config.experiment.name}",
+                     model_name=f"{config.rl_framework}-{config.model_type}-{config.experiment.name}-best-model",
                      model_type=config.model_type,
                      max_steps=config.max_steps,
                      episodes=config.episodes,
@@ -146,8 +146,8 @@ def debug_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : 
         eval_env.get_next_image()
         state = eval_env.reset()
         #eval_env.visualize_current_state()
-        eval_env.visualize_leaflets(gt=False)
-        #true, pred = eval_env.get_aortic_valve_metrics()
+        true, pred = eval_env.get_aortic_valve_metrics()
+        print(true)
         #print(true, pred)
         #eval_env.geometry.plot(plot_geometric_heights=True, plot_basal_ring=True, plot_bezier_curves=True, plot_label_points=False)
         pairwise_matrixes.append(eval_env.pairwise_distances)

@@ -38,8 +38,9 @@ class MedicalLogger:
 
         metrics_cols = [
             "R_cusp_insertion", "L_cusp_insertion", "N_cusp_insertion",
-            "R_belly_angle", "L_belly_angle", "N_belly_angle", "Mean_belly_angle",
-            "RL_angle", "LN_angle", "NR_angle", "Mean_inter_leaflet_angle"
+            "R_symmetry_ratio", "L_symmetry_ratio", "N_symmetry_ratio"
+            "R_belly_angle", "L_belly_angle", "N_belly_angle",
+            "RL_angle", "LN_angle", "NR_angle"
         ]
         true_cols = [f"true_{col}" for col in metrics_cols]
         pred_cols = [f"pred_{col}" for col in metrics_cols]
@@ -55,8 +56,9 @@ class MedicalLogger:
 
         metrics_cols = [
             "R_cusp_insertion", "L_cusp_insertion", "N_cusp_insertion",
-            "R_belly_angle", "L_belly_angle", "N_belly_angle", "Mean_belly_angle",
-            "RL_angle", "LN_angle", "NR_angle", "Mean_inter_leaflet_angle"
+            "R_symmetry_ratio", "L_symmetry_ratio", "N_symmetry_ratio"
+            "R_belly_angle", "L_belly_angle", "N_belly_angle",
+            "RL_angle", "LN_angle", "NR_angle"
         ]
         true_vals = [true_metrics.get(key, None) for key in metrics_cols]
         pred_vals = [pred_metrics.get(key, None) for key in metrics_cols]

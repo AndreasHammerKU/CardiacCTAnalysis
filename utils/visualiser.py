@@ -421,7 +421,7 @@ def boxplot_test_errors(val_dfs, configs, run_ids, title_suffix="", save_path=No
             model = config.get("model_type", "UnknownModel")
             experiment_raw = config.get("experiment", "UnknownExperiment")
             experiment = getattr(experiment_raw, "name", str(experiment_raw))
-
+            print(errors.mean(), experiment)
             runs.append({
                 "errors": errors,
                 "label": f"{experiment}-{model}",
@@ -463,28 +463,35 @@ def boxplot_test_errors(val_dfs, configs, run_ids, title_suffix="", save_path=No
 
 def process_metric_data(val_dfs, configs, run_ids, title_suffix=""):
     metrics_cols = [
-            "R_cusp_insertion", "L_cusp_insertion", "N_cusp_insertion",
-            "R_belly_angle", "L_belly_angle", "N_belly_angle", "Mean_belly_angle",
-            "RL_angle", "LN_angle", "NR_angle", "Mean_inter_leaflet_angle"
+        "R_cusp_insertion", "L_cusp_insertion", "N_cusp_insertion",
+        "R_symmetry_ratio", "L_symmetry_ratio", "N_symmetry_ratio"
+        "R_belly_angle", "L_belly_angle", "N_belly_angle",
+        "RL_angle", "LN_angle", "NR_angle"
     ]
     summaries = []
     for val_df, config, run_id in zip(val_dfs, configs, run_ids):
         summary = {}
+        ground_truth = {}
+        predicted = {}
 
         for col in metrics_cols:
             true_col = f"true_{col}"
             pred_col = f"pred_{col}"
 
             if true_col in val_df.columns and pred_col in val_df.columns:
-                diff = val_df[pred_col] - val_df[true_col]
+                diff = np.abs(val_df[pred_col] - val_df[true_col])
                 mean_diff = diff.mean()
                 std_diff = diff.std()
-                summary[col] = f"{mean_diff:+.2} ± {std_diff:.2f}"
+                summary[col] = f"{mean_diff:.2} ± {std_diff:.2f}"
+                predicted[col] = f"{val_df[pred_col].mean():.4} ± {val_df[pred_col].std():.2f}"
+                ground_truth[col] = f"{val_df[true_col].mean():.4} ± {val_df[true_col].std():.2f}"
             else:
                 summary[col] = "N/A"
         summaries.append({
             "run_id": run_id,
-            "differences": summary
+            "differences": summary,
+            "predicted" : predicted,
+            "ground_truth" : ground_truth
         })
 
     return summaries
@@ -527,7 +534,7 @@ def extract_plane_slice_with_points_full(image, p0, p1, p2, points_to_project, s
 
     return slice_image, grid_x, grid_y, projected_pts, u, v, center
 
-def visualize_leaflet_planes(image, affine, landmarks, extra_points=None, curves=None):
+def visualize_leaflet_planes(image, affine, landmarks, extra_points=None, pred_curves=None, true_curves=None, plot_squares=False):
     from numpy.linalg import inv
 
     inv_affine = inv(affine)
@@ -584,42 +591,55 @@ def visualize_leaflet_planes(image, affine, landmarks, extra_points=None, curves
             ax.text(px2+2, py2+2, 'G_i', color='blue')
 
         # Plot Bezier curve
-        if curves is not None:
-            curve1 = curves[2*i]  # Nx3
-            curve2 = curves[2*i + 1]
+        if pred_curves is not None:
+            curve1 = pred_curves[2*i]  # Nx3
+            curve2 = pred_curves[2*i + 1]
             cx, cy = project_curve_to_plane(np.array(curve1), origin, u, v)
-            indexes = np.linspace(0, len(cx), 3).astype(int)
-            indexes[-1] -= 1
 
-            x_coords = cx[indexes]
-            y_coords = cy[indexes]
+            if plot_squares:
+                indexes = np.linspace(0, len(cx), 5).astype(int)
+                indexes[-1] -= 1
 
-            ax.scatter(x_coords, y_coords, color='blue', label='Sample Points')
-            side_length = 45
-            half_side = side_length / 2
+                x_coords = cx[indexes]
+                y_coords = cy[indexes]
 
-            # Draw squares around each point
-            for x, y in zip(x_coords, y_coords):
-                square = patches.Rectangle((x - half_side, y - half_side), side_length, side_length,
-                                           linewidth=1, edgecolor='blue', facecolor='none')
-                ax.add_patch(square)
-            ax.plot(cx, cy, 'r-', linewidth=2)
+                ax.scatter(x_coords, y_coords, color='blue', label='Sample Points')
+                side_length = 21
+                half_side = side_length / 2
+
+                # Draw squares around each point
+                for x, y in zip(x_coords, y_coords):
+                    square = patches.Rectangle((x - half_side, y - half_side), side_length, side_length,
+                                               linewidth=1, edgecolor='blue', facecolor='none')
+                    ax.add_patch(square)
+            ax.plot(cx, cy, 'r-', linewidth=2, label='Predicted Curves')
 
 
             cx, cy = project_curve_to_plane(np.array(curve2), origin, u, v)
-            x_coords = cx[indexes]
-            y_coords = cy[indexes]
+            if plot_squares:
+                x_coords = cx[indexes]
+                y_coords = cy[indexes]
 
-            ax.scatter(x_coords, y_coords, color='blue', label='Sample Points')
+                ax.scatter(x_coords, y_coords, color='blue', label='Sample Points')
 
-            # Draw squares around each point
-            for x, y in zip(x_coords, y_coords):
-                square = patches.Rectangle((x - half_side, y - half_side), side_length, side_length,
-                                           linewidth=1, edgecolor='blue', facecolor='none')
-                ax.add_patch(square)
+                # Draw squares around each point
+                for x, y in zip(x_coords, y_coords):
+                    square = patches.Rectangle((x - half_side, y - half_side), side_length, side_length,
+                                               linewidth=1, edgecolor='blue', facecolor='none')
+                    ax.add_patch(square)
             ax.plot(cx, cy, 'r-', linewidth=2)
 
+        if true_curves is not None:
+            curve1 = true_curves[2*i]  # Nx3
+            curve2 = true_curves[2*i + 1]
+            cx, cy = project_curve_to_plane(np.array(curve1), origin, u, v)
+            ax.plot(cx, cy, 'g-', linewidth=2, label='True Curves')
+
+            cx, cy = project_curve_to_plane(np.array(curve2), origin, u, v)
+            ax.plot(cx, cy, 'g-', linewidth=2)
+
         ax.set_title(f"{leaflet_name} Leaflet")
+        ax.legend()
 
     plt.tight_layout()
     plt.show()

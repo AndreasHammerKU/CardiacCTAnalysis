@@ -1,7 +1,7 @@
-model_type: Network3D
+model_type: CommNet
 attention: false
 experiment: SHARE_PAIRWISE
-rl_framework: DQN
+rl_framework: DDQN
 lr: 0.001
 gamma: 0.95
 max_epsilon: 1.0

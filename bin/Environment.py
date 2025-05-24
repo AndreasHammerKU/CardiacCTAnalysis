@@ -58,8 +58,6 @@ class MedicalImageEnvironment(gym.Env):
 
         if task != "train":
             self.current_image = 0
-
-        
         
         if task != "train":
             if os.path.exists(c.REGISTRATION_LANDMARKS) and os.path.exists(c.REGISTRATION_GROUND_TRUTH):
@@ -122,19 +120,20 @@ class MedicalImageEnvironment(gym.Env):
                 control_std=0.4
             )
 
-    def visualize_leaflets(self, gt=False, granularity=100):
+    def visualize_leaflets(self, plot_pred=True, plot_gt=False, granularity=100, plot_squares=False):
         t_values = np.linspace(0, 1, granularity)
-        curves = []
+        pred_curves = []
+        true_curves = []
         for i in range(self.agents):
-            if gt:
-                curves.append(plotting_bezier_curve(self._p0[i], self._ground_truth[i], self._p2[i], t_values))
-            else:
-                curves.append(plotting_bezier_curve(self._p0[i], self._location[i], self._p2[i], t_values))
+            if plot_gt:
+                true_curves.append(plotting_bezier_curve(self._p0[i], self._ground_truth[i], self._p2[i], t_values))
+            if plot_pred:
+                pred_curves.append(plotting_bezier_curve(self._p0[i], self._location[i], self._p2[i], t_values))
 
-        if gt:
-            visualize_leaflet_planes(self.image, self.affine, self.landmarks, extra_points=self._ground_truth, curves=curves)
-        else:
-            visualize_leaflet_planes(self.image, self.affine, self.landmarks, curves=curves)
+        pred_curves = pred_curves if plot_pred else None
+        true_curves = true_curves if plot_gt else None
+
+        visualize_leaflet_planes(self.image, self.affine, self.landmarks, pred_curves=pred_curves, true_curves=true_curves, plot_squares=plot_squares)
 
     def _get_test_starting_point(self, test_landmarks, train_landmarks, train_ground_truths, rigid=True):
         """

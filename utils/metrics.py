@@ -42,13 +42,23 @@ def compute_leaflet_metrics_from_landmarks(landmarks: dict, bezier_curves: list 
     metrics["L_cusp_insertion"] = compute_curve_length(L_curve)
     metrics["N_cusp_insertion"] = compute_curve_length(N_curve)
 
+    metrics["R1_cusp_insertion"] = compute_curve_length(bezier_curves[1])
+    metrics["R2_cusp_insertion"] = compute_curve_length(bezier_curves[0])
+    metrics["L1_cusp_insertion"] = compute_curve_length(bezier_curves[3])
+    metrics["L2_cusp_insertion"] = compute_curve_length(bezier_curves[2])
+    metrics["N1_cusp_insertion"] = compute_curve_length(bezier_curves[5])
+    metrics["N2_cusp_insertion"] = compute_curve_length(bezier_curves[4])
+
+    metrics["R_symmetry_ratio"] = min(metrics["R1_cusp_insertion"], metrics["R2_cusp_insertion"]) / max(metrics["R1_cusp_insertion"], metrics["R2_cusp_insertion"])
+    metrics["L_symmetry_ratio"] = min(metrics["L1_cusp_insertion"], metrics["L2_cusp_insertion"]) / max(metrics["L1_cusp_insertion"], metrics["L2_cusp_insertion"])
+    metrics["N_symmetry_ratio"] = min(metrics["N1_cusp_insertion"], metrics["N2_cusp_insertion"]) / max(metrics["N1_cusp_insertion"], metrics["N2_cusp_insertion"])
+
     # -------------------------------
     # Belly Angles (midpoint curvature estimate)
     # -------------------------------
     metrics["R_belly_angle"] = compute_angle_between_three_points(landmarks['R'], control_points[1], control_points[0])
     metrics["L_belly_angle"] = compute_angle_between_three_points(landmarks['L'], control_points[3], control_points[2])
     metrics["N_belly_angle"] = compute_angle_between_three_points(landmarks['N'], control_points[5], control_points[4])
-    metrics["Mean_belly_angle"] = (metrics["R_belly_angle"] + metrics["L_belly_angle"] + metrics["N_belly_angle"]) / 3
 
     # -------------------------------
     # Commissural Angles (interleaflet)
@@ -57,7 +67,6 @@ def compute_leaflet_metrics_from_landmarks(landmarks: dict, bezier_curves: list 
     metrics["RL_angle"] = compute_angle_between_three_points(landmarks["RLC"], control_points[0],  control_points[3])
     metrics["LN_angle"] = compute_angle_between_three_points(landmarks["LNC"], control_points[2],  control_points[5])
     metrics["NR_angle"] = compute_angle_between_three_points(landmarks["RNC"], control_points[4],  control_points[1])
-    metrics["Mean_inter_leaflet_angle"] = (metrics["RL_angle"] + metrics["LN_angle"] + metrics["NR_angle"]) / 3
 
     return metrics
 
