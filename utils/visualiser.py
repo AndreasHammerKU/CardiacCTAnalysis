@@ -464,7 +464,7 @@ def boxplot_test_errors(val_dfs, configs, run_ids, title_suffix="", save_path=No
 def process_metric_data(val_dfs, configs, run_ids, title_suffix=""):
     metrics_cols = [
         "R_cusp_insertion", "L_cusp_insertion", "N_cusp_insertion",
-        "R_symmetry_ratio", "L_symmetry_ratio", "N_symmetry_ratio"
+        "R_symmetry_ratio", "L_symmetry_ratio", "N_symmetry_ratio",
         "R_belly_angle", "L_belly_angle", "N_belly_angle",
         "RL_angle", "LN_angle", "NR_angle"
     ]
@@ -479,6 +479,8 @@ def process_metric_data(val_dfs, configs, run_ids, title_suffix=""):
             pred_col = f"pred_{col}"
 
             if true_col in val_df.columns and pred_col in val_df.columns:
+                print(col)
+                print(val_df[pred_col], val_df[true_col])
                 diff = np.abs(val_df[pred_col] - val_df[true_col])
                 mean_diff = diff.mean()
                 std_diff = diff.std()
