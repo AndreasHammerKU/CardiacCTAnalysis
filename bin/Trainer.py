@@ -285,7 +285,6 @@ class Trainer:
                 
                 evaluation_errors_avg.append(avg_error_mm)
                 evaluation_errors_worst.append(worst_error_mm)
-                environment.visualize_leaflets(plot_gt=True, plot_pred=True)
 
         self.logger.info("===== Evaluation Summary =====")
         make_boxplot(evaluation_errors_avg)
