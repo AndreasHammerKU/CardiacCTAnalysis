@@ -9,7 +9,7 @@ from scipy.cluster.hierarchy import linkage, dendrogram
 from pycpd import AffineRegistration, DeformableRegistration
 from scipy.ndimage import map_coordinates
 from utils.visualiser import visualize_leaflet_planes
-from utils.metrics import compute_leaflet_metrics_from_landmarks
+from utils.metrics import compute_leaflet_metrics_from_landmarks, compute_curve_length
 import constants as c
 import torch
 from tqdm import tqdm
@@ -287,10 +287,40 @@ class MedicalImageEnvironment(gym.Env):
 
             true_curve = plotting_bezier_curve(p0_world[i], ground_truth_world[i], p2_world[i], t_values)
             
+            agent_error = 0
+            for o in range(len(predicted_curve)):
+                difference_to_point = np.linalg.norm(np.abs(predicted_curve - true_curve[o]), axis=1)
+                agent_error += np.min(difference_to_point)
 
-            error[i] = np.sum(np.abs(predicted_curve - true_curve)) / len(predicted_curve)
+            error[i] = agent_error / len(predicted_curve)
 
-        return error    
+        return error
+    
+    def get_curve_error_voxel_scaled(self, t_values, points):
+        # Compute voxel size (resolution) from the affine
+        voxel_sizes = np.sqrt((self.affine[:3, :3] ** 2).sum(axis=0))  # [sx, sy, sz]
+
+        # No transformation to world space; work in voxel space
+        p0_voxel = np.array(self._p0)
+        ground_truth_voxel = np.array(self._ground_truth)
+        p2_voxel = np.array(self._p2)
+        location_voxel = np.array(points)
+
+        error = np.zeros(self.agents, dtype=np.float32)
+        for i in range(self.agents):
+            predicted_curve_voxel = plotting_bezier_curve(p0_voxel[i], location_voxel[i], p2_voxel[i], t_values)
+            true_curve_voxel = plotting_bezier_curve(p0_voxel[i], ground_truth_voxel[i], p2_voxel[i], t_values)
+
+            # Compute error in voxel space
+            voxel_error = np.abs(predicted_curve_voxel - true_curve_voxel)
+
+            # Scale voxel error to mm using voxel sizes
+            mm_error = voxel_error * voxel_sizes  # broadcasting over [x, y, z]
+
+            # Average error over all t_values
+            error[i] = np.sum(mm_error) / len(predicted_curve_voxel)
+
+        return error
 
     def get_aortic_valve_metrics(self):
         p0_world = np.array([np.dot(self.affine, np.append(point, 1))[:3] for point in self._p0])

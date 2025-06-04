@@ -147,8 +147,6 @@ def debug_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : 
         state = eval_env.reset()
         #eval_env.visualize_current_state()
         true, pred = eval_env.get_aortic_valve_metrics()
-        print(true)
-        #print(true, pred)
         #eval_env.geometry.plot(plot_geometric_heights=True, plot_basal_ring=True, plot_bezier_curves=True, plot_label_points=False)
         pairwise_matrixes.append(eval_env.pairwise_distances)
 
@@ -160,14 +158,14 @@ def debug_model(config : ExperimentConfig, logger : MedicalLogger, dataLoader : 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     # Average Distance Heatmap
     sns.heatmap(avg_distances[order, :][:, order], ax=axes[0], cmap='Blues', annot=True, fmt=".2f")
-    axes[0].set_title("Average Pairwise Distances")
+    axes[0].set_title("Average Pairwise Distances (mm)")
     axes[0].set_xlabel("Points")
     axes[0].set_ylabel("Points")
 
     # Variance Heatmap
     sns.heatmap(var_distances[order, :][:, order], ax=axes[1], cmap='Reds', annot=True, fmt=".2f")
     
-    axes[1].set_title("Variance of Pairwise Distances")
+    axes[1].set_title("Variance of Pairwise Distances (mm)")
     axes[1].set_xlabel("Points")
     axes[1].set_ylabel("Points")
 

@@ -272,6 +272,8 @@ class Trainer:
                 naive_error_mm = environment.get_curve_error(t_values=np.linspace(0, 1, 100), points=environment.midpoint).mean()
                 evaluation_total_reward.append(total_reward)
                 
+                environment.visualize_current_state()
+                environment.visualize_leaflets(plot_gt=True)
                 end_avg_dist = np.mean(current_distances)
                 avg_closest_point = np.mean(closest_point)
                 avg_furthest_point = np.mean(furthest_point)

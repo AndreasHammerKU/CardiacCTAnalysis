@@ -5,4 +5,4 @@ from utils.visualiser import visualize_from_logs
 
 logger = logs.setup_logger(False)
 
-visualize_from_logs(logger=logger, experiment='DQN-metrics-extra', save_path=c.FIGURE_FOLDER, viz_name="DQN-Final-Final-Final")
+visualize_from_logs(logger=logger, experiment='metrics-extra', save_path=c.FIGURE_FOLDER, viz_name="Final-Final-Final")

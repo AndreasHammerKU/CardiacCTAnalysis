@@ -14,6 +14,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from utils.geometry_fitting import split_and_approximate_curve, sample_bezier_curve_3d, LeafletGeometry
 from bin.DataLoader import _map_landmarks, _world_to_voxel
+import pandas as pd
+import re
+from collections import defaultdict
+
 def _create_slice_viewer(nifti_data, landmark_data, bezier_curves, control_points):
     slices = nifti_data.shape[2]
     
@@ -269,8 +273,49 @@ def view_curve(image_name, dataLoader):
 
 
 def visualize_from_logs(logger, save_path=None, experiment=c.DQN_LOGS, viz_name=""):
+    dqn_internal, dqn_external = _visualize_from_logs(logger, save_path, f"DQN-{experiment}", f"DQN-{viz_name}")
+    ddqn_internal, ddqn_external =_visualize_from_logs(logger, save_path, f"DDQN-{experiment}", f"DDQN-{viz_name}")
+
+    merged_internal = merge_dfs(dqn_internal, ddqn_internal)
+    merged_external = merge_dfs(dqn_external, ddqn_external)
 
 
+    merged_internal.to_csv(f"internal_summary-{viz_name}.csv", index=False)
+    merged_external.to_csv(f"external_summary-{viz_name}.csv", index=False)
+
+def merge_dfs(dqn_df, ddqn_df):
+    # Rename columns
+    dqn_df = rename_arch_columns(dqn_df, "DQN")
+    ddqn_df = rename_arch_columns(ddqn_df, "DDQN")
+
+    # Merge internal on Input Type + Metric
+    merged = pd.merge(
+        dqn_df,
+        ddqn_df,
+        on=["Input Type", "Metric"],
+        how="outer"  # or "inner" if all combinations must exist
+    )
+
+    # Reorder columns
+    ordered_cols = ["Input Type", "Metric",
+                    "DQN-Network3D", "DQN-CommNet",
+                    "DDQN-Network3D", "DDQN-CommNet"]
+    input_type_order = ["WORK_ALONE", "SHARE_POSITIONS", "SHARE_PAIRWISE"]
+    metric_order = [
+        "R_cusp_insertion", "L_cusp_insertion", "N_cusp_insertion",
+        "R_symmetry_ratio", "L_symmetry_ratio", "N_symmetry_ratio",
+        "R_belly_angle", "L_belly_angle", "N_belly_angle",
+        "RL_angle", "LN_angle", "NR_angle"
+    ]
+    merged = merged[ordered_cols]
+
+    merged["Input Type"] = pd.Categorical(merged["Input Type"], categories=input_type_order, ordered=True)
+    merged["Metric"] = pd.Categorical(merged["Metric"], categories=metric_order, ordered=True)
+    merged = merged.sort_values(by=["Input Type", "Metric"]).reset_index(drop=True)
+
+    return merged
+
+def _visualize_from_logs(logger, save_path=None, experiment=c.DQN_LOGS, viz_name=""):
     train_files = glob(os.path.join(c.LOGS_FOLDER, experiment, c.TRAIN_LOGS, '*'))
     test_files = glob(os.path.join(c.LOGS_FOLDER, experiment, c.TEST_LOGS, '*'))
     test_external_files = glob(os.path.join(c.LOGS_FOLDER, experiment, c.TEST_EXTERNAL_LOGS, '*'))
@@ -324,8 +369,77 @@ def visualize_from_logs(logger, save_path=None, experiment=c.DQN_LOGS, viz_name=
     internal_stats = process_metric_data(test_val_dfs, test_configs, test_run_ids, title_suffix=" (Internal)")
     external_stats = process_metric_data(test_ext_val_dfs, test_ext_configs, test_ext_run_ids, title_suffix=" (External)")
 
-    print_metric_summaries(internal_stats, title="Internal Test Metric Differences")
-    print_metric_summaries(external_stats, title="External Test Metric Differences")
+    internal_df = format_metric_summaries(internal_stats)
+    external_df = format_metric_summaries(external_stats)
+
+    return internal_df, external_df
+
+def rename_arch_columns(df, prefix):
+    return df.rename(columns={
+        "CommNet": f"{prefix}-CommNet",
+        "Network3D": f"{prefix}-Network3D"
+    })
+
+def format_metric_summaries(summaries):
+    """
+    Format metric difference summaries from multiple runs, preserving desired order.
+
+    Parameters:
+        summaries (list of dict): Output from process_metric_data.
+
+    Returns:
+        pd.DataFrame: Formatted summary grouped by input type and architecture.
+    """
+    from collections import defaultdict
+    import re
+
+    # Desired custom order
+    input_type_order = ["WORK_ALONE", "SHARE_POSITIONS", "SHARE_PAIRWISE"]
+    metric_order = [
+        "R_cusp_insertion", "L_cusp_insertion", "N_cusp_insertion",
+        "R_symmetry_ratio", "L_symmetry_ratio", "N_symmetry_ratio",
+        "R_belly_angle", "L_belly_angle", "N_belly_angle",
+        "RL_angle", "LN_angle", "NR_angle"
+    ]
+
+    arch_order = ["Network3D", "CommNet"]  # column order in output
+
+    # Grouped results: input_type -> metric -> architecture -> value
+    grouped = defaultdict(lambda: defaultdict(dict))
+
+    print(summaries[0]['ground_truth'])
+    for summary in summaries:
+        run_id = summary["run_id"]
+        arch_match = re.search(r"(CommNet|Network3D)", run_id)
+        input_match = re.search(r"(SHARE_PAIRWISE|SHARE_POSITIONS|WORK_ALONE)", run_id)
+
+        if not arch_match or not input_match:
+            continue  # skip if pattern is unexpected
+
+        arch = arch_match.group(1)
+        input_type = input_match.group(1)
+
+        for metric, diff_val in summary["differences"].items():
+            grouped[input_type][metric][arch] = diff_val
+
+    # Build a flat list of rows, following custom order
+    rows = []
+    for input_type in input_type_order:
+        if input_type not in grouped:
+            continue
+        for metric in metric_order:
+            if metric not in grouped[input_type]:
+                continue
+            row = {
+                "Input Type": input_type,
+                "Metric": metric
+            }
+            for arch in arch_order:
+                row[arch] = grouped[input_type][metric].get(arch, "N/A")
+            rows.append(row)
+
+    return pd.DataFrame(rows)
+
 
 def print_metric_summaries(summaries, title="Validation Metric Differences"):
     """
@@ -479,12 +593,10 @@ def process_metric_data(val_dfs, configs, run_ids, title_suffix=""):
             pred_col = f"pred_{col}"
 
             if true_col in val_df.columns and pred_col in val_df.columns:
-                print(col)
-                print(val_df[pred_col], val_df[true_col])
                 diff = np.abs(val_df[pred_col] - val_df[true_col])
                 mean_diff = diff.mean()
                 std_diff = diff.std()
-                summary[col] = f"{mean_diff:.2} ± {std_diff:.2f}"
+                summary[col] = f"{mean_diff:.4} ± {std_diff:.2f}"
                 predicted[col] = f"{val_df[pred_col].mean():.4} ± {val_df[pred_col].std():.2f}"
                 ground_truth[col] = f"{val_df[true_col].mean():.4} ± {val_df[true_col].std():.2f}"
             else:
